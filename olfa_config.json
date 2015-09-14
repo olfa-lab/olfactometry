@@ -1,0 +1,91 @@
+{
+  "Olfactometers": [
+    {
+      "interface": "teensy",
+      "com_port": 4,
+      "master_sn": 212,
+      "cassette_1_sn": 1222,
+      "cassette_2_sn": 1234,
+      "cleandate": 20140101,
+      "slave_index": 1,
+
+      "MFCs": [
+        {
+          "MFC_type": "alicat_digital_arduino",
+          "capacity": 1000,
+          "arduino_port_num": 1,
+          "address": "A",
+          "gas": "Air"
+        },
+        {
+          "MFC_type": "alicat_digital_arduino",
+          "capacity": 100,
+          "arduino_port_num": 2,
+          "address": "A",
+          "gas": "Nitrogen"
+        }
+      ],
+      "Dilutors": [
+        {
+          "dilutor_type": "serial_forwarding",
+          "com_port": 11,
+          "MFCs": [
+            {
+              "MFC_type": "alicat_digital_raw",
+              "capacity": 2000,
+              "address": "A",
+              "gas": "vac"
+            },
+            {
+              "MFC_type": "alicat_digital_raw",
+              "capacity": 2000,
+              "address": "B",
+              "gas": "Air"
+            }
+          ]
+        }
+      ],
+
+      "Vials": {
+        "4": {
+          "odor": "dummy",
+          "conc": 0
+        },
+        "5": {
+          "odor": "a(+)-pinene",
+          "conc": 0.01
+        },
+        "6": {
+          "odor": "amyl acetate",
+          "conc": 0.01
+        },
+        "7": {
+          "odor": "2-hydroxy acetophenone",
+          "conc": 0.01
+        },
+        "8": {
+          "odor": "ethyl tiglate",
+          "conc": 0.01
+        },
+        "9": {
+          "odor": "menthone",
+          "conc": 0.01
+        },
+        "10": {
+          "odor": "acetophenone",
+          "conc": 0.01
+        },
+        "11": {
+          "odor": "heptaldehyde",
+          "conc": 0.01
+        },
+        "12": {
+          "odor": "R(+)-limonene",
+          "conc": 0.01
+        }
+      }
+
+    }
+  ]
+}
+
