@@ -18,19 +18,13 @@ class CalibrationViewer(QtGui.QMainWindow):
 
     def __init__(self):
         super(CalibrationViewer, self).__init__()
-        self.filters = [{'name': 'odor',
-                         "selection_list_constructor": self._default_selection_list_constructor},
-                        {'name': "vialconc",
-                         'selection_list_constructor': self._default_selection_list_constructor},
-                        {'name': 'odorconc',
-                         'selection_list_constructor': self._default_selection_list_constructor},
-                        {'name': 'Dillution Factor',
-                         "selection_list_constructor": self._dilution_list_constructor}]
-
-
+        self.filters = [FiltersListWidget('odor'),
+                        FiltersListWidget('vialconc'),
+                        FiltersListWidget('odorconc'),
+                        DilutionListWidget('dilution')]
         self.setWindowTitle('Olfa Calibration')
         self.statusBar()
-        self.all_trial_num_list = []
+        self.trial_num_list = []
         self.trial_selected_list = []
         self.trialsChanged.connect(self._trial_selection_changed)
 
@@ -43,12 +37,17 @@ class CalibrationViewer(QtGui.QMainWindow):
         filemenu = menu.addMenu("&File")
         toolsmenu = menu.addMenu("&Tools")
 
-        openAction = QtGui.QAction("&Open recording", self)
+        openAction = QtGui.QAction("&Open recording...", self)
         openAction.triggered.connect(self._openAction_triggered)
         openAction.setStatusTip("Open a HDF5 data file with calibration recording.")
         openAction.setShortcut("Ctrl+O")
         filemenu.addAction(openAction)
-        exitAction = QtGui.QAction("E&xit", self)
+        saveFigsAction = QtGui.QAction('&Save figures...', self)
+        saveFigsAction.triggered.connect(self._saveFiguresAction_triggered)
+        saveFigsAction.setShortcut('Ctrl+S')
+        openAction.setStatusTip("Saves current figures.")
+        filemenu.addAction(saveFigsAction)
+        exitAction = QtGui.QAction("&Quit", self)
         exitAction.setShortcut("Ctrl+Q")
         exitAction.setStatusTip("Quit program.")
         exitAction.triggered.connect(QtGui.qApp.quit)
@@ -58,7 +57,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         removeTrialAction.triggered.connect(self._remove_trials)
         removeTrialAction.setShortcut('Ctrl+R')
         toolsmenu.addAction(removeTrialAction)
-
+        combineFiltersAction = QtGui.QAction('Combine filters', self)
 
         trial_select_list_box = QtGui.QGroupBox()
         trial_select_list_box.setMouseTracking(True)
@@ -78,14 +77,13 @@ class CalibrationViewer(QtGui.QMainWindow):
         filters_box.setLayout(filters_layout)
         layout.addWidget(filters_box, 0, 1)
         for v in self.filters:
+            assert isinstance(v, FiltersListWidget)
             box = QtGui.QGroupBox()
-            box.setTitle(v['name'])
+            box.setTitle(v.fieldname)
             _filt_layout = QtGui.QVBoxLayout(box)
-            l = QtGui.QListWidget()
-            _filt_layout.addWidget(l)
-            v['selection_QListWidget'] = l
+            _filt_layout.addWidget(v)
             filters_layout.addWidget(box)
-            l.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+            v.filterChanged.connect(self._filters_changed)
 
         plots_box = QtGui.QGroupBox()
         plots_box.setTitle('Plots')
@@ -100,95 +98,19 @@ class CalibrationViewer(QtGui.QMainWindow):
         layout.addWidget(plots_box, 0, 2)
         self.ax_pid = self.figure.add_subplot(111)
 
-    def build_filters(self):
-        for v in self.filters:
-            v['selection_list_constructor'](v)
-            v['trial_mask'] = np.ones(len(self.all_trial_num_list), dtype=bool)
-        return
-
-
-    def _default_selection_list_constructor(self, filterdict):
-
-        selectlist = filterdict['selection_QListWidget']
-        assert isinstance(selectlist, QtGui.QListWidget)
-        selectlist.clear()
-        fieldname = filterdict['name']
-        trial_vals = self.data.trials[fieldname]
-        filterdict['trial_values'] = trial_vals
-        listvals = np.unique(filterdict['trial_values'])
-        filterdict['list_values'] = listvals
-        for val in listvals:
-            it = QtGui.QListWidgetItem(str(val), selectlist)
-            it.setSelected(True)
-        selectlist.itemSelectionChanged.connect(self._filters_changed)
-        return
-
-    def _dilution_list_constructor(self, filterdict):
-        selectlist = filterdict['selection_QListWidget']
-        trials = self.data.trials
-        try:
-            dil_flows = trials['dilution']
-            n2 = trials['NitrogenFlow_1']
-            air = trials['AirFlow_1']
-            t_flow = air + n2
-            trial_vals = (t_flow - dil_flows[:, 0]) / t_flow
-            filterdict['trial_values'] = trial_vals
-            listvals = np.unique(trial_vals)
-            filterdict['list_values'] = listvals
-            for val in listvals:
-                it = QtGui.QListWidgetItem(str(val), selectlist)
-                it.setSelected(True)
-            selectlist.itemSelectionChanged.connect(self._filters_changed)
-        except:
-            pass
-        return
-
-
-    def _mask_func_constructor(self, _):
-        return
 
 
 
     @QtCore.pyqtSlot()
+    def _list_context_menu_trig(self):
+        pass
+
+    @QtCore.pyqtSlot()
     def _filters_changed(self):
-        # first I want to filter based on the list that was changed. This allows me to filter the other lists based on
-        # that selection. Not doing this risks that you will filter incorrectly.
-        sender = self.sender()
-        assert isinstance(sender, QtGui.QListWidget)
-        for filter in self.filters:
-            k = filter['name']
-            if filter['selection_QListWidget'] is sender:
-                break
-        mask = np.zeros(len(self.all_trial_num_list), dtype=bool)
-        for i in sender.selectedIndexes():
-            ii = i.row()
-            val = filter['list_values'][ii]
-            mask += filter['trial_values'] == val
-        filter['trial_mask'] = mask.copy()  # save a copy of this for later changes.
-
-        for v in self.filters:  #other filters didn't change, so we can use their masks.
-            k2 = v['name']
-            if not k2 == k:
-                mask *= v['trial_mask']
+        mask = np.ones_like(self.trial_mask)
+        for v in self.filters:
+            mask *= v.trial_mask
         self.trial_mask = mask
-        # for v in self.filters:  # disable filter selections that result in no trials based on current selections.
-        #     k2 = v['name']
-        #     if not k2 == k:
-        #         select_list = v['selection_QListWidget']
-        #         assert isinstance(select_list, QtGui.QListWidget)
-        #         for i in xrange(len(v['list_values'])):
-        #             val = v['list_values'][i]
-        #             mask2 = v['trial_values'] == val
-        #             if not np.sum(mask2 * mask):
-        #                 # select_list.item(i).setFlags(QtCore.Qt.NoItemFlags)  # 0
-        #                 select_list.item(i).setForeground(QtCore.Qt.gray)
-        #             else:
-        #                 # it = select_list.item(i)
-        #                 select_list.item(i).setForeground(QtCore.Qt.black)
-        #                 # if not it.flags().__int__() == LIST_ITEM_ENABLE_FLAG:
-
-        # Next, hide trials that don't meet the filter criteria. First disconnect the trial select signal so that we
-        # don't redraw a ton of times.
         self.trial_select_list.itemSelectionChanged.disconnect(self._trial_selection_changed)
         for i in xrange(len(self.trial_mask)):
             hide = not self.trial_mask[i]
@@ -227,12 +149,23 @@ class CalibrationViewer(QtGui.QMainWindow):
                                                                                        dilution)
                 it.setStatusTip(trst)
                 trial_num_list.append(i)
-            self.all_trial_num_list = np.array(trial_num_list)
-            self.trial_mask = np.ones(len(self.all_trial_num_list), dtype=bool)
+            self.trial_num_list = np.array(trial_num_list)
+            self.trial_mask = np.ones(len(self.trial_num_list), dtype=bool)
             self.build_filters()
         else:
             print('No file selected.')
         return
+
+    def build_filters(self):
+        for v in self.filters:
+            assert isinstance(v, FiltersListWidget)
+            v.populate_list(self.data.trials)
+        return
+
+    @QtCore.pyqtSlot()
+    def _saveFiguresAction_triggered(self):
+        # TODO: add figure saving functionality with filedialog.getSaveFileName.
+        pass
 
     @QtCore.pyqtSlot()
     def _remove_trials(self):
@@ -241,24 +174,19 @@ class CalibrationViewer(QtGui.QMainWindow):
         for id in selected_idxes:
             idx = id.row()
             remove_idxes.append(idx)
-        print remove_idxes
         while self.trial_select_list.selectedIndexes():
             selected_idxes = self.trial_select_list.selectedIndexes()
             idx = selected_idxes[0].row()
             self.trial_select_list.takeItem(idx)
-            print idx
-
-        new_trials_array = np.zeros(len(self.all_trial_num_list)-len(remove_idxes), dtype=np.int)
+        new_trials_array = np.zeros(len(self.trial_num_list)-len(remove_idxes), dtype=np.int)
         ii = 0
-        for i in xrange(len(self.all_trial_num_list)):
+        for i in xrange(len(self.trial_num_list)):
             if i not in remove_idxes:
-                new_trials_array[ii] = self.all_trial_num_list[i]
+                new_trials_array[ii] = self.trial_num_list[i]
                 ii += 1
-            else:
-                print i
-        print new_trials_array
-        self.all_trial_num_list = new_trials_array
-
+        self.trial_num_list = new_trials_array
+        for f in self.filters:
+            f.remove_trials(remove_idxes)
 
     @QtCore.pyqtSlot()
     def _trial_selection_changed(self):
@@ -266,7 +194,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         selected_trial_nums = []
         for id in selected_idxes:
             idx = id.row()
-            trialnum = self.all_trial_num_list[idx]
+            trialnum = self.trial_num_list[idx]
             selected_trial_nums.append(trialnum)
         self.update_pid_plot(selected_trial_nums)
         return
@@ -282,9 +210,6 @@ class CalibrationViewer(QtGui.QMainWindow):
                 trial_streams.append(trial.streams['sniff'])
                 self.ax_pid.plot(trial.streams['sniff'], 'b', alpha=a)
         self.canvas.draw()
-
-
-
 
     def update_trials(self):
         pass
@@ -306,6 +231,136 @@ class CalibrationViewer(QtGui.QMainWindow):
             item = QtGui.QListWidgetItem()
             select_list.addItem(str(vc))
 
+
+class FiltersListWidget(QtGui.QListWidget):
+
+    filterChanged = QtCore.pyqtSignal()
+
+    def __init__(self, fieldname):
+        """
+        build a QListWidget to be used with the calibrator.
+
+        :param fieldname:
+        :return:
+        """
+        super(FiltersListWidget, self).__init__()
+        self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        self.fieldname = fieldname
+        self.list_values = np.array([])
+        self.trial_values = np.array([])
+        self.trial_mask = np.array([], dtype=bool)
+        self.itemSelectionChanged.connect(self._selection_changed)
+        return
+
+    def populate_list(self, trials):
+        self.itemSelectionChanged.disconnect(self._selection_changed)
+        self.clear()
+        fieldname = self.fieldname
+        trial_vals = trials[fieldname]
+        self.trial_values = trial_vals  # values for the field for every trial
+        self.list_values = np.unique(trial_vals)  # values as they correspond to the list.
+        self.trial_mask = np.ones(len(trial_vals), dtype=bool)
+        for val in self.list_values:
+            it = QtGui.QListWidgetItem(str(val), self)
+            it.setSelected(True)
+        self.itemSelectionChanged.connect(self._selection_changed)
+        return
+
+    @QtCore.pyqtSlot(QtGui.QMouseEvent)
+    def mousePressEvent(self, event):
+        assert isinstance(event, QtGui.QMouseEvent)
+        if event.button() == QtCore.Qt.RightButton:
+            selected = self.selectedIndexes()
+            popMenu = QtGui.QMenu()
+            combineAction = QtGui.QAction('Combine groups', self)
+            combineAction.triggered.connect(self._combine)
+            popMenu.addAction(combineAction)
+            if len(selected) > 1:
+                combineAction.setStatusTip("Combines selected filter groups into one supergroup.")
+            else:
+                combineAction.setEnabled(False)
+                combineAction.setStatusTip("Must select at least 2 filter groups to combine.")
+            popMenu.exec_(event.globalPos())
+        else:
+            super(FiltersListWidget, self).mousePressEvent(event)
+        return
+
+    @QtCore.pyqtSlot()
+    def _combine(self):
+        selected = self.selectedIndexes()
+        assert len(selected) > 1
+        template_i = selected[0]
+        template_ii = template_i.row()
+        template_val = self.list_values[template_ii]
+        template_item = self.item(template_ii)
+        remove_vals = []
+        self.item(template_ii).setSelected(False)
+        for i in self.selectedIndexes():
+            ii = i.row()
+            val = self.list_values[ii]
+            self.trial_values[self.trial_values == val] = template_val
+            remove_vals.append(val)
+        while self.selectedIndexes():
+            idx = self.selectedIndexes()[0].row()
+            self.takeItem(idx)
+        new_list_vals = []
+        for i in self.list_values:
+            if i not in remove_vals:
+                new_list_vals.append(i)
+        self.list_values = np.array(new_list_vals)
+        template_item.setSelected(True)
+        return
+
+    @QtCore.pyqtSlot()
+    def _selection_changed(self):
+        mask = np.zeros_like(self.trial_mask)
+        for i in self.selectedIndexes():
+            ii = i.row()
+            val = self.list_values[ii]
+            mask += self.trial_values == val
+        self.trial_mask = mask
+        self.filterChanged.emit()
+        return
+
+    def remove_trials(self, removeidx_list):
+        new_trial_val_list = []
+        new_trial_mask_list = []
+        for i in xrange(len(self.trial_values)):
+            if i not in removeidx_list:
+                val = self.trial_values[i]
+                new_trial_val_list.append(val)
+                m = self.trial_mask[i]
+                new_trial_mask_list.append(m)
+        self.trial_values = np.array(new_trial_val_list)
+        self.trial_mask = np.array(new_trial_mask_list, dtype=bool)
+
+    def sizeHint(self):
+        s = QtCore.QSize()
+        s.setHeight(self.sizeHintForRow(4))
+        s.setWidth(super(FiltersListWidget, self).sizeHint().width())
+        return s
+
+
+class DilutionListWidget(FiltersListWidget):
+
+    def populate_list(self, trials):
+        self.clear()
+        try:
+            dil_flows = trials['dilution']
+            n2 = trials['NitrogenFlow_1']
+            air = trials['AirFlow_1']
+            t_flow = air + n2
+            trial_vals = (t_flow - dil_flows[:, 0]) / t_flow
+            self.trial_values = trial_vals
+            self.trial_mask = np.ones(len(trial_vals), dtype=bool)
+            listvals = np.unique(trial_vals)
+            self.list_values = listvals
+            for val in listvals:
+                it = QtGui.QListWidgetItem(str(val), self)
+                it.setSelected(True)
+        except:
+            pass
+        return
 
 
 class RichData(object):
