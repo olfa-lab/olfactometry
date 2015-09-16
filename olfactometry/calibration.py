@@ -24,7 +24,6 @@ class CalibrationViewer(QtGui.QMainWindow):
                         DilutionListWidget('dilution')]
         self.setWindowTitle('Olfa Calibration')
         self.statusBar()
-        self.trial_num_list = []
         self.trial_selected_list = []
         self.trialsChanged.connect(self._trial_selection_changed)
 
@@ -57,25 +56,34 @@ class CalibrationViewer(QtGui.QMainWindow):
         removeTrialAction.triggered.connect(self._remove_trials)
         removeTrialAction.setShortcut('Ctrl+R')
         toolsmenu.addAction(removeTrialAction)
-        combineFiltersAction = QtGui.QAction('Combine filters', self)
+
+        trial_group_list_box = QtGui.QGroupBox()
+        trial_group_list_box.setTitle('Trial Groups')
+        self.trial_group_list = TrialGroupListWidget()
+        trial_group_layout = QtGui.QVBoxLayout()
+        trial_group_list_box.setLayout(trial_group_layout)
+        trial_group_layout.addWidget(self.trial_group_list)
+        layout.addWidget(trial_group_list_box, 0, 0)
+        self.trial_group_list.itemSelectionChanged.connect(self._trial_group_selection_changed)
 
         trial_select_list_box = QtGui.QGroupBox()
         trial_select_list_box.setMouseTracking(True)
         trial_select_list_layout = QtGui.QVBoxLayout()
         trial_select_list_box.setLayout(trial_select_list_layout)
         trial_select_list_box.setTitle('Trials')
-        self.trial_select_list = QtGui.QListWidget()
+        self.trial_select_list = TrialListWidget()
         self.trial_select_list.setMouseTracking(True)
         trial_select_list_layout.addWidget(self.trial_select_list)
         self.trial_select_list.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.trial_select_list.itemSelectionChanged.connect(self._trial_selection_changed)
-        layout.addWidget(trial_select_list_box, 0, 0)
+        layout.addWidget(trial_select_list_box, 0, 1)
+        self.trial_select_list.createGroupSig.connect(self.trial_group_list.create_group)
 
         filters_box = QtGui.QGroupBox()
         filters_box.setTitle("Trial filters.")
         filters_layout = QtGui.QVBoxLayout()
         filters_box.setLayout(filters_layout)
-        layout.addWidget(filters_box, 0, 1)
+        layout.addWidget(filters_box, 0, 2)
         for v in self.filters:
             assert isinstance(v, FiltersListWidget)
             box = QtGui.QGroupBox()
@@ -90,16 +98,15 @@ class CalibrationViewer(QtGui.QMainWindow):
         plots_layout = QtGui.QVBoxLayout()
 
         self.figure = Figure((9, 5))
+        self.figure.patch.set_facecolor('None')
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setParent(plots_box)
         self.canvas.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         plots_layout.addWidget(self.canvas)
         plots_box.setLayout(plots_layout)
-        layout.addWidget(plots_box, 0, 2)
+        layout.addWidget(plots_box, 0, 3)
         self.ax_pid = self.figure.add_subplot(111)
-
-
-
+        self.ax_pid.set_title('PID traces')
 
     @QtCore.pyqtSlot()
     def _list_context_menu_trig(self):
@@ -120,7 +127,6 @@ class CalibrationViewer(QtGui.QMainWindow):
             it.setSelected(select)
         self.trial_select_list.itemSelectionChanged.connect(self._trial_selection_changed)
         self.trial_select_list.itemSelectionChanged.emit()  # emit that something changed so that we redraw.
-
 
     @QtCore.pyqtSlot()
     def _openAction_triggered(self):
@@ -149,8 +155,8 @@ class CalibrationViewer(QtGui.QMainWindow):
                                                                                        dilution)
                 it.setStatusTip(trst)
                 trial_num_list.append(i)
-            self.trial_num_list = np.array(trial_num_list)
-            self.trial_mask = np.ones(len(self.trial_num_list), dtype=bool)
+            self.trial_select_list.trial_num_list = np.array(trial_num_list)
+            self.trial_mask = np.ones(len(self.trial_select_list.trial_num_list), dtype=bool)
             self.build_filters()
         else:
             print('No file selected.')
@@ -178,15 +184,24 @@ class CalibrationViewer(QtGui.QMainWindow):
             selected_idxes = self.trial_select_list.selectedIndexes()
             idx = selected_idxes[0].row()
             self.trial_select_list.takeItem(idx)
-        new_trials_array = np.zeros(len(self.trial_num_list)-len(remove_idxes), dtype=np.int)
+        new_trials_array = np.zeros(len(self.trial_select_list.trial_num_list)-len(remove_idxes), dtype=np.int)
         ii = 0
-        for i in xrange(len(self.trial_num_list)):
+        remove_trialnums = []
+        new_trials_mask = np.zeros_like(new_trials_array, dtype=bool)
+        for i in xrange(len(self.trial_select_list.trial_num_list)):
             if i not in remove_idxes:
-                new_trials_array[ii] = self.trial_num_list[i]
+                new_trials_mask[ii] = self.trial_mask[i]
+                new_trials_array[ii] = self.trial_select_list.trial_num_list[i]
                 ii += 1
-        self.trial_num_list = new_trials_array
+            else:
+                remove_trialnums.append(self.trial_select_list.trial_num_list[i])
+        self.trial_mask = new_trials_mask
+        self.trial_select_list.trial_num_list = new_trials_array
+
         for f in self.filters:
             f.remove_trials(remove_idxes)
+        self.trial_group_list._remove_trials(remove_trialnums)
+
 
     @QtCore.pyqtSlot()
     def _trial_selection_changed(self):
@@ -194,21 +209,51 @@ class CalibrationViewer(QtGui.QMainWindow):
         selected_trial_nums = []
         for id in selected_idxes:
             idx = id.row()
-            trialnum = self.trial_num_list[idx]
+            trialnum = self.trial_select_list.trial_num_list[idx]
             selected_trial_nums.append(trialnum)
         self.update_pid_plot(selected_trial_nums)
+        self.trial_group_list.blockSignals(True)
+        for i, g in zip(xrange(self.trial_group_list.count()), self.trial_group_list.trial_groups):
+            it = self.trial_group_list.item(i)
+            all_in = True
+            group_trials = g['trial_nums']
+            for t in group_trials:
+                if t not in selected_trial_nums:
+                    all_in = False
+            if not all_in:
+                it.setSelected(False)
+            elif all_in:
+                it.setSelected(True)
+        self.trial_group_list.blockSignals(False)
         return
 
+    @QtCore.pyqtSlot()
+    def _trial_group_selection_changed(self):
+        selected_idxes = self.trial_group_list.selectedIndexes()
+        selected_trial_nums = []
+        for id in selected_idxes:
+            idx = id.row()
+            trialnums = self.trial_group_list.trial_groups[idx]['trial_nums']
+            selected_trial_nums.extend(trialnums)
+        self.trial_select_list.blockSignals(True)
+        for i in selected_trial_nums:
+            idx = np.where(self.trial_select_list.trial_num_list == i)[0][0]
+            it = self.trial_select_list.item(idx)
+            if not it.isSelected():
+                it.setSelected(True)
+        self.trial_select_list.blockSignals(False)
+        self._trial_selection_changed()
+
     def update_pid_plot(self, trials):
-        print 'update'
         trial_streams = []
         self.ax_pid.clear()
         if trials:
             a = max([1./len(trials), .25])
             for tn in trials:
+                color = self.trial_group_list.check_trial_color(tn)
                 trial = self.data.return_trial(tn, padding=(2000, 2000))
                 trial_streams.append(trial.streams['sniff'])
-                self.ax_pid.plot(trial.streams['sniff'], 'b', alpha=a)
+                self.ax_pid.plot(trial.streams['sniff'], color=color, alpha=a)
         self.canvas.draw()
 
     def update_trials(self):
@@ -230,6 +275,134 @@ class CalibrationViewer(QtGui.QMainWindow):
         for vc in self.vconcs:
             item = QtGui.QListWidgetItem()
             select_list.addItem(str(vc))
+
+
+class TrialListWidget(QtGui.QListWidget):
+
+    createGroupSig = QtCore.pyqtSignal(list)
+
+    def __init__(self):
+        super(TrialListWidget, self).__init__()
+        self.trial_num_list = np.array([])
+
+    def mousePressEvent(self, event):
+        if event.button() == QtCore.Qt.LeftButton:
+            super(TrialListWidget, self).mousePressEvent(event)
+        elif event.button() == QtCore.Qt.RightButton:
+            popMenu = QtGui.QMenu()
+            createGroupAction = QtGui.QAction('Create grouping', self)
+            createGroupAction.setStatusTip("Creates a trial group from the selected trials.")
+            createGroupAction.triggered.connect(self._create_group)
+            popMenu.addAction(createGroupAction)
+            popMenu.exec_(event.globalPos())
+
+    def _create_group(self):
+        selected_trial_nums = []
+        for i in self.selectedIndexes():
+            ii = i.row()
+            trialnum = self.trial_num_list[ii]
+            selected_trial_nums.append(trialnum)
+        self.createGroupSig.emit(selected_trial_nums)
+
+
+class TrialGroupListWidget(QtGui.QListWidget):
+
+    def __init__(self):
+
+        super(TrialGroupListWidget, self).__init__()
+        self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        self.trial_groups = []
+
+    @QtCore.pyqtSlot(QtGui.QMouseEvent)
+    def mousePressEvent(self, event):
+        button = event.button()
+        if button == QtCore.Qt.LeftButton:
+            super(TrialGroupListWidget, self).mousePressEvent(event)
+        elif button == QtCore.Qt.RightButton:
+            popMenu = QtGui.QMenu()
+            delGroupAction = QtGui.QAction('Remove groups', self)
+            delGroupAction.triggered.connect(self._remove_groups)
+            delGroupAction.setStatusTip('Removes selected groupings.')
+            popMenu.addAction(delGroupAction)
+            changeColorAction = QtGui.QAction('Change color...', self)
+            changeColorAction.triggered.connect(self._color_selection_triggered)
+            changeColorAction.setStatusTip('Open color selection dialog to set group color.')
+            popMenu.addAction(changeColorAction)
+            popMenu.exec_(event.globalPos())
+
+    def check_trial_color(self, trialnum):
+        color = 'b'
+        for g in self.trial_groups:
+            if trialnum in g['trial_nums']:
+                qc = g['color']
+                assert isinstance(qc, QtGui.QColor)
+                color = [qc.redF(), qc.greenF(), qc.blueF()]
+        return color
+
+    @QtCore.pyqtSlot(list)
+    def create_group(self, trial_numbers):
+        existing_group_numbers = list()
+        for group in self.trial_groups:
+            gname = group['name']
+            try:
+                gnum = int(gname[6:])
+                existing_group_numbers.append(gnum)
+            except ValueError:
+                pass
+        i = 1
+        while i in existing_group_numbers:
+            i += 1
+        new_group_name = 'Group {0}'.format(i)
+        it = QtGui.QListWidgetItem(new_group_name)
+        it.setSelected(True)
+        self.addItem(it)
+        group_dict = {'name': new_group_name,
+                      'trial_nums': trial_numbers,
+                      'color': QtGui.QColor(0, 0, 0, 255)}  # black
+        self.trial_groups.append(group_dict)
+        return
+
+    def _remove_groups(self):
+        remove_idxes = []
+        for i in self.selectedIndexes():
+            ii = i.row()
+            remove_idxes.append(ii)
+        remove_idxes.sort(reverse=True)
+        for i in remove_idxes:
+            del self.trial_groups[i]
+        while self.selectedIndexes():
+            i = self.selectedIndexes()[0]
+            ii = i.row()
+            self.takeItem(ii)
+        return
+
+    def _color_selection_triggered(self):
+        self.colorpicker = QtGui.QColorDialog()
+        self.colorpicker.colorSelected.connect(self._change_group_color)
+        self.colorpicker.show()
+        return
+
+    @QtCore.pyqtSlot(QtGui.QColor)
+    def _change_group_color(self, color):
+
+        for item in self.selectedItems():
+            assert isinstance(item, QtGui.QListWidgetItem)
+            item.setForeground(color)
+        for i in self.selectedIndexes():
+            ii = i.row()
+            tg = self.trial_groups[ii]
+            tg['color'] = color
+        self.itemSelectionChanged.emit()
+
+    def _remove_trials(self, removetrials):
+        #TODO: connect this.
+        for group in self.trial_groups:
+            trials = group['trial_nums']
+            assert isinstance(trials, list)
+            for i in removetrials:
+                if i in trials:
+                    trials.remove(i)
+        return
 
 
 class FiltersListWidget(QtGui.QListWidget):
@@ -268,7 +441,6 @@ class FiltersListWidget(QtGui.QListWidget):
 
     @QtCore.pyqtSlot(QtGui.QMouseEvent)
     def mousePressEvent(self, event):
-        assert isinstance(event, QtGui.QMouseEvent)
         if event.button() == QtCore.Qt.RightButton:
             selected = self.selectedIndexes()
             popMenu = QtGui.QMenu()
