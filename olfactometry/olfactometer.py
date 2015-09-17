@@ -79,7 +79,7 @@ class TeensyOlfa(Olfactometer):
         self.mfcs = self._config_mfcs(config_dict['MFCs'])
         self.vials = VialGroup(self, config_dict['Vials'])
         self._poll_mfcs()
-        self._mfc_timer = self.start_mfc_polling(mfc_polling_interval)
+        self._mfc_timer = self._start_mfc_polling(mfc_polling_interval)
 
         layout = QtGui.QHBoxLayout(self)
         for mfc in self.mfcs:
@@ -99,64 +99,69 @@ class TeensyOlfa(Olfactometer):
 
         ** Raises exemption if no matches are found or if multiple matches are found. **
 
-        :param odor: String to specify odor.
+        :param odor: String to specify odor.  None, False, or '' will open no vial and return True.
         :param conc: Float concentration, optional.
         :param valvestate: Optionally explicitly state whether to open or close valve. Pass True to open, False to close.
-        :return:
+        :return: True if setting appears to be successful.
+        :rtype: bool
         """
-
-        vnum = self.vials.find_odor(odor, conc)
-        return self.set_vial(vnum, valvestate)
+        if odor:
+            vnum = self.vials.find_odor(odor, conc)
+            return self.set_vial(vnum, valvestate)
+        else:  # no odor specified. Return true because you were asked to do nothing and complied.
+            return True
 
     def set_vial(self, vial_num, valvestate=None, override_checks=False):
         """
         Sets a vial by number. This vial corresponds to the vial number in the teensy. It opens/closes a pair of valves
         using the "vialOn"/"vialOff" commands. Teensy handles actuating the pair of valves for the vial.
 
-        :param vial_num: Vial number to actuate.
+        :param vial_num: Vial number to actuate. None, False, or 0 will open no vial and return True.
         :param valvestate: Optionally explicitly state whether to open or close valve. Pass True to open, False to close.
         :param override_checks: Optionally override flow checks and lockout timing. Used for cleaning.
-        :return: True if set is completed, False if not.
+        :return: True if setting appears to be successful.
+        :rtype: bool
         """
+        if vial_num:
+            set_completed = False  # this is returned. Set to true if things go ok.
 
-        set_completed = False  # this is returned. Set to true if things go ok.
+            if valvestate is None:
+                if vial_num == self.checked_id:
+                    valvestate = 0
+                else:
+                    valvestate = 1
 
-        if valvestate is None:
-            if vial_num == self.checked_id:
-                valvestate = 0
-            else:
-                valvestate = 1
+            if vial_num == self.dummyvial:
+                return self.setdummyvial(valvestate)
 
-        if vial_num == self.dummyvial:
-            return self.setdummyvial(valvestate)
+            if valvestate:  # we're opening a vial, so we have to check some conditions first.
+                if not self.check_flows() and not override_checks:
+                    logging.warning("MFCs reporting no flow. Cannot open valve.")
+                elif not self.checked_id == self.dummyvial and not override_checks:
+                    logging.warning('Operation not permitted: another valve is open and must be closed before opening another.')
+                elif vial_num == self.checked_id:
+                    logging.warning('Valve is already open.')
+                elif self._valve_time_lockout and not override_checks:
+                    logging.warning('Cannot open vial. Must wait 1 second after last valve closed to prevent cross=contamination.')
+                else:
+                    set_completed = self._set_valveset(vial_num, valvestate)
+                    if set_completed:
+                            self._valve_time_lockout = True
+                            self.checked_id = vial_num
+                            self.vialChanged.emit(self.checked_id)
 
-        if valvestate:  # we're opening a vial, so we have to check some conditions first.
-            if not self.check_flows() and not override_checks:
-                logging.warning("MFCs reporting no flow. Cannot open valve.")
-            elif not self.checked_id == self.dummyvial and not override_checks:
-                logging.warning('Operation not permitted: another valve is open and must be closed before opening another.')
-            elif vial_num == self.checked_id:
-                logging.warning('Valve is already open.')
-            elif self._valve_time_lockout and not override_checks:
-                logging.warning('Cannot open vial. Must wait 1 second after last valve closed to prevent cross=contamination.')
-            else:
-                set_completed = self._set_valveset(vial_num, valvestate)
-                if set_completed:
-                        self._valve_time_lockout = True
-                        self.checked_id = vial_num
+            elif not valvestate:
+                if not vial_num == self.checked_id:
+                    logging.warning('Cannot close valve, it is not open.')
+                else:
+                    set_completed = self._set_valveset(vial_num, valvestate)
+                    if set_completed:
+                        logging.debug('set completed')
+                        QtCore.QTimer.singleShot(1000, self._valve_lockout_clear)
+                        self.checked_id = self.dummyvial
                         self.vialChanged.emit(self.checked_id)
-
-        elif not valvestate:
-            if not vial_num == self.checked_id:
-                logging.warning('Cannot close valve, it is not open.')
-            else:
-                set_completed = self._set_valveset(vial_num, valvestate)
-                if set_completed:
-                    logging.debug('set completed')
-                    QtCore.QTimer.singleShot(1000, self._valve_lockout_clear)
-                    self.checked_id = self.dummyvial
-                    self.vialChanged.emit(self.checked_id)
-
+        else:  # no vial specified. Return true because you were asked to do nothing and complied.
+            set_completed = True
         return set_completed
 
     def set_flows(self, flows):
@@ -182,7 +187,10 @@ class TeensyOlfa(Olfactometer):
 
     def check_flows(self):
         """
-        Return true if all MFCs polling correctly and are reporting flow.
+        Checks all MFCs in olfa to see if they are reporting flow. This prevents opening a vial in a no-flow condition.
+
+        :return: True if all MFCs polling correctly and are reporting flow.
+        :rtype: bool
         """
 
         flows_on = True
@@ -201,7 +209,8 @@ class TeensyOlfa(Olfactometer):
 
         :param dilution_factor: list of dilution factors, one for each dilutor on the olfactometer.
         :param flows:  list of lists, one list per dilutor. Each list contains flowrates for each MFC in the dilutor (vac, air).
-        :return:
+        :return: True if setting appears to be successful.
+        :rtype: bool
         """
         successes = list()
         if dilution_factor is not None:
@@ -250,7 +259,7 @@ class TeensyOlfa(Olfactometer):
             print('pySerial exception: Exception that is raised on write timeouts')
         return line
 
-    def start_mfc_polling(self, polling_interval_sec=1.):
+    def _start_mfc_polling(self, polling_interval_sec=1.):
         logging.debug('Starting MFC polling.')
         mfc_timer = QtCore.QTimer()
         mfc_timer.timeout.connect(self._poll_mfcs)
@@ -259,6 +268,10 @@ class TeensyOlfa(Olfactometer):
         return mfc_timer
 
     def close_serial(self):
+        """
+        Closes serial communication to olfactometer. Used before deleting object or reinitializing.
+        :return: None
+        """
         self.serial.close()
         for dil in self.dilutors:
             dil.close_serial()
@@ -278,11 +291,19 @@ class TeensyOlfa(Olfactometer):
 
     @QtCore.pyqtSlot()
     def stop_mfc_polling(self):
+        """
+        Stops MFC polling.
+        :return:
+        """
         self._mfc_timer.stop()
         return
 
     @QtCore.pyqtSlot()
     def restart_mfc_polling(self):
+        """
+        Restarts MFC pooling after stop.
+        :return:
+        """
         if not self._mfc_timer.isActive():
             self._mfc_timer.start(int(self.polling_interval*1000))  # from seconds to msec
         return
@@ -312,7 +333,7 @@ class TeensyOlfa(Olfactometer):
         Usually, you want to pass valvestate with a 1 to close open valves and set the dummy open.
 
         :param valvestate: Desired state of the dummy (0 closed, 1 open). Default is 1.
-        :return:
+        :return: True if successful setting.
         :rtype : bool
         """
         success = False
@@ -352,6 +373,9 @@ class TeensyOlfa(Olfactometer):
         return success
 
     def all_off(self):
+        """
+        Closes all valves on olfactometer. Called during startup.
+        """
         logging.info('Setting all valves to OFF.')
         for button in self.vials.valves.buttons():
             vial = self.vials.valves.id(button)
@@ -478,6 +502,7 @@ class VialGroup(QtGui.QWidget):
         :param odor: string for odor.
         :param conc: float concentration, optional.
         :return: integer of the vial where odor/concentration found.
+        :rtype: int
         """
         odor_matches = []
         for k, v in self.valve_config:
