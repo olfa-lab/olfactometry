@@ -41,6 +41,8 @@ class Olfactometer(QtGui.QGroupBox):
         """
 
 class TeensyOlfa(Olfactometer):
+
+
     def __init__(self, parent, config_dict, mfc_polling_interval=2.):
         """
 
@@ -73,7 +75,6 @@ class TeensyOlfa(Olfactometer):
                 print ser_str
             raise e
 
-
         # CONFIGURE DEVICES
         self.dilutors = self._config_dilutors(config_dict.get('Dilutors', {}))
         self.mfcs = self._config_mfcs(config_dict['MFCs'])
@@ -105,9 +106,11 @@ class TeensyOlfa(Olfactometer):
         :return: True if setting appears to be successful.
         :rtype: bool
         """
-        if odor:
+        if isinstance(odor, str):
             vnum = self.vials.find_odor(odor, conc)
             return self.set_vial(vnum, valvestate)
+        elif isinstance(odor, int):  # a valve was specified.
+            return self.set_vial(odor, valvestate)
         else:  # no odor specified. Return true because you were asked to do nothing and complied.
             return True
 
@@ -414,6 +417,18 @@ class TeensyOlfa(Olfactometer):
     def _valve_lockout_clear(self):
         self._valve_time_lockout = False
         return
+
+    def generate_stimulus_template(self):
+        stim_template_dict = {'odor': 'str (odorname) or int (vialnumber).',
+                              'vialconc': 'float concentration of odor to be presented.',
+                              'flows': 'tuple: (int MFC1flow, int MFC2flow)'}
+        dilutor_dict = dict()
+        for i in xrange(len(self.dilutors)):
+            dilutor = self.dilutors[i]
+            k = 'dilutor_{0}'.format(i)
+            dilutor_dict[k] = dilutor.generate_stimulus_template()
+        stim_template_dict['dilutors'] = dilutor_dict
+        return stim_template_dict
 
 
 class VialGroup(QtGui.QWidget):

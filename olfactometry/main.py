@@ -3,8 +3,10 @@ __author__ = 'chris'
 from PyQt4 import QtCore, QtGui
 from utils import get_olfa_config, OlfaException
 from olfactometer import TeensyOlfa
+from pprint import pformat
 import logging
 import os
+
 
 
 class Olfactometers(QtGui.QMainWindow):
@@ -17,14 +19,21 @@ class Olfactometers(QtGui.QMainWindow):
     def __init__(self, parent=None, config_obj=None):
         super(Olfactometers, self).__init__()  # not sure if this will work.
         if not config_obj:
-            self.config_fn, config_obj = get_olfa_config()
-        self.olfa_specs = config_obj['Olfactometers']
+            self.config_fn, self.config_obj = get_olfa_config()
+        elif isinstance(config_obj, dict):
+            self.config_obj = config_obj
+        elif isinstance(config_obj, str):
+            self.config_fn, self.config_obj = get_olfa_config(config_obj)
+        else:
+            raise OlfaException("Passed config_obj is of unknown type. Can be a dict, path to JSON or None.")
+        print config_obj
+        self.olfa_specs = self.config_obj['Olfactometers']
         self.olfas = self._add_olfas(self.olfa_specs)
         try:
-            self.dilutor_specs = config_obj['Dilutors']  # configure *global* dilutors.
+            self.dilutor_specs = self.config_obj['Dilutors']  # configure *global* dilutors.
             self.dilutors = self._add_dillutors(self.dilutor_specs)
         except KeyError:  # no global Dilutors are specified, which is OK!
-            pass
+            self.dilutors = []
         self.setWindowTitle("Olfactometry")
         layout = QtGui.QVBoxLayout()
         for olfa in self.olfas:
@@ -104,8 +113,8 @@ class Olfactometers(QtGui.QMainWindow):
         This sets dilution flows for dilutors attached to olfactometers or global dilutors attached to all olfactometers.
         Each flow spec is specified by a list of flowrates: [vac, air].
 
-        :param olfa_dilution_flows: list of lists specifying dilution flows for dilutors attached to olfactometers:
-        [[olfa1_vac_flow, olfa1_air_flow], [olfa2_vac_flow...], ...]
+        :param olfa_dilution_flows: list of lists of lists specifying dilution flows for dilutors attached to
+        olfactometers: [[[olfa1_vac1, olfa1_air1], [olfa1_vac2, olfa1_air2], ...], [[olfa2_vac1, olfa2_vac2],... ], ...]
         :param global_dilution_flows: sets flow for global dilutor (ie those attached to all olfactometers):
         [[global1_vac, global1_air], [global2_vac,...], ...]
         :return: True if all setting appears successful.
@@ -149,6 +158,11 @@ class Olfactometers(QtGui.QMainWindow):
         openConfigAction.setStatusTip("Opens config file: {0} in system text editor.".format(self.config_fn))
         toolsmenu.addAction(openConfigAction)
 
+        stimTemplateAction = QtGui.QAction('Stimulus template...', self)
+        stimTemplateAction.setStatusTip('Displays a stimulus dictionary template based on current configuration.')
+        stimTemplateAction.triggered.connect(self._stim_template_display)
+        toolsmenu.addAction(stimTemplateAction)
+
     def _add_olfas(self, olfa_specs):
         """
 
@@ -191,6 +205,49 @@ class Olfactometers(QtGui.QMainWindow):
         for o in self.olfas:
             self.centralWidget().layout().addWidget(o)
         return
+
+    @QtCore.pyqtSlot()
+    def _stim_template_display(self):
+        template_string = self.generate_stimulus_template()
+        print template_string
+        d = QtGui.QWidget()
+        d.setWindowTitle('Stimulus template')
+        l = QtGui.QVBoxLayout(d)
+        desc_box = QtGui.QLabel()
+        desc_box.setText('The text below is a template for a stimulus dictionary for this configuration.\n\nPassing this '
+                         'dictionary to the Olfactometers.set_stimulus function will set the stimulus for all '
+                         'olfactometers and dilutors in the configuration.')
+        desc_box.setWordWrap(True)
+        l.addWidget(desc_box)
+        text_box = QtGui.QPlainTextEdit()
+        text_box.setReadOnly(True)
+        # text_box.setPlainText(template_string)
+        text_box.setPlainText(template_string)
+        text_box.setFont(QtGui.QFont("Courier"))
+        text_box.setLineWrapMode(text_box.NoWrap)
+        text_box.setMinimumSize(text_box.document().size().toSize())
+        l.addWidget(text_box)
+        self.stimulus_template_dialog = d
+        self.stimulus_template_dialog.show()
+
+    def generate_stimulus_template(self):
+        stimulus_template = {}
+        olfa_templates = {}
+        dilutor_templates = {}
+
+        for i in xrange(len(self.olfas)):
+            olfa = self.olfas[i]
+            k = 'olfactometer_{0}'.format(i)
+            olfa_templates[k] = olfa.generate_stimulus_template()
+        stimulus_template['olfactometers'] = olfa_templates
+        if self.dilutors:
+            for i in xrange(len(self.dilutors)):
+                dil = self.dilutors[i]
+                k = 'dilutor_{0}'.format(i)
+                dilutor_templates[k] = dil.generate_stimulus_templates()
+            stimulus_template['dilutors'] = dilutor_templates
+        s = pformat(stimulus_template, width=120)
+        return s
 
     @QtCore.pyqtSlot()
     def _open_config(self):

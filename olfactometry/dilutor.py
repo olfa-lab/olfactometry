@@ -145,6 +145,13 @@ class Dilutor(QtGui.QGroupBox):
                 successes.append(success)
             return all(successes)
 
+    def generate_stimulus_template(self):
+        stim_template_dict = {'dilution_factor': 'float (optional)',
+                              'vac_flow': 'int flowrate in flow units',
+                              'air_flow': 'int flowrate in flow units',}
+        return stim_template_dict
+
+
 
 
 class DilutorCalibrator(object):
