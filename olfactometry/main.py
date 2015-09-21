@@ -1,12 +1,12 @@
 __author__ = 'chris'
 
 from PyQt4 import QtCore, QtGui
-from utils import get_olfa_config, OlfaException
-from olfactometer import TeensyOlfa
+from utils import get_olfa_config, OlfaException, flatten_dictionary
+from olfactometer import TeensyOlfa, Olfactometer
+from dilutor import Dilutor
 from pprint import pformat
 import logging
 import os
-
 
 
 class Olfactometers(QtGui.QMainWindow):
@@ -26,7 +26,6 @@ class Olfactometers(QtGui.QMainWindow):
             self.config_fn, self.config_obj = get_olfa_config(config_obj)
         else:
             raise OlfaException("Passed config_obj is of unknown type. Can be a dict, path to JSON or None.")
-        print config_obj
         self.olfa_specs = self.config_obj['Olfactometers']
         self.olfas = self._add_olfas(self.olfa_specs)
         try:
@@ -46,6 +45,35 @@ class Olfactometers(QtGui.QMainWindow):
         menubar = self.menuBar()
         self._buildmenubar(menubar)
         QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('CleanLooks'))
+
+    def set_stimulus(self, stimulus_dictionary):
+        """
+        This sets the stimulus for ALL olfactometers and attached devices using a single dictionary. This dictionary
+        format depends on the configuration of the attached devices. Within the gui, a template can be generated for the
+        current configuration from the "Tools:Stimulus Template..." function.
+
+        :param stimulus_dictionary: Dictionary of stimulus parameters for olfactory stimulus.
+        :type stimulus_dictionary: dict
+        :return: True if all successes appear to be successful.
+        :rtype: bool
+        """
+        std = stimulus_dictionary
+        n_olfas = len(std['olfas'])
+        successes = []
+        for i in xrange(n_olfas):
+            k = 'olfa_{0}'.format(i)
+            o = std['olfas'][k]
+            olfa = self.olfas[i]
+            success = olfa.set_stimulus(o)
+            successes.append(success)
+        if 'dilutors' in std.keys():
+            for i in xrange(len(std['dilutors'])):
+                dil = self.dilutors[i]
+                k = 'dilutor_{0}'.format(i)
+                d = std['dilutors'][k]
+                success = dil.set_stimulus(d)
+                successes.append(success)
+        return all(successes)
 
     def set_vials(self, vials, valvestates=None):
         """
@@ -89,6 +117,19 @@ class Olfactometers(QtGui.QMainWindow):
             if odor:
                 success = olfa.set_odor(odor, conc, valvestate)
                 successes.append(success)
+        return all(successes)
+
+    def set_dummy_vials(self):
+        """
+        Call this to close all odorvials. Used after trial complete.
+
+        :return: True if all dummys set.
+        :rtype: bool
+        """
+        successes = []
+        for o in self.olfas:
+            success = o.set_dummy_vial()
+            successes.append(success)
         return all(successes)
 
     def set_flows(self, flows):
@@ -142,6 +183,17 @@ class Olfactometers(QtGui.QMainWindow):
                 global_successes.append(success)
         global_success = all(global_successes)
         return all((olfa_success, global_success))
+
+    def check_flows(self):
+        """
+        Check that all olfactometers' MFCs are reporting flow.
+        :return: True if all olfas' MFCs are flowing.
+        :rtype: bool
+        """
+        successes = []
+        for o in self.olfas:
+            successes.append(o.check_flows())
+        return all(successes)
 
     def _buildmenubar(self, bar):
         assert isinstance(bar, QtGui.QMenuBar)
@@ -237,9 +289,9 @@ class Olfactometers(QtGui.QMainWindow):
 
         for i in xrange(len(self.olfas)):
             olfa = self.olfas[i]
-            k = 'olfactometer_{0}'.format(i)
-            olfa_templates[k] = olfa.generate_stimulus_template()
-        stimulus_template['olfactometers'] = olfa_templates
+            k = 'olfa_{0}'.format(i)
+            olfa_templates[k] = olfa.generate_stimulus_template_string()
+        stimulus_template['olfas'] = olfa_templates
         if self.dilutors:
             for i in xrange(len(self.dilutors)):
                 dil = self.dilutors[i]
@@ -248,6 +300,22 @@ class Olfactometers(QtGui.QMainWindow):
             stimulus_template['dilutors'] = dilutor_templates
         s = pformat(stimulus_template, width=120)
         return s
+
+    def generate_tables_definition(self):
+        definition = dict()
+        dilutor_def = dict()
+        olfa_definition = dict()
+        for i, dilutor in enumerate(self.dilutors):
+            assert isinstance(dilutor, Dilutor)
+            k = 'dilutor_{0}'.format(i)
+            dilutor_def[k] = dilutor.generate_tables_definition()
+        for i, olfa in enumerate(self.olfas):
+            assert isinstance(olfa, Olfactometer)
+            k = 'olfa_{0}'.format(i)
+            olfa_definition[k] = olfa.generate_tables_definition()
+        definition['olfas'] = olfa_definition
+        definition['dilutors'] = dilutor_def
+        return flatten_dictionary(definition)
 
     @QtCore.pyqtSlot()
     def _open_config(self):
@@ -269,6 +337,12 @@ class Olfactometers(QtGui.QMainWindow):
             super(Olfactometers, self).close()
         else:
             self.hide()
+
+    def close_serials(self):
+        for o in self.olfas:
+            o.close_serial()
+        for d in self.dilutors:
+            d.close_serial()
 
 
 def main(config_path=''):

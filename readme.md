@@ -34,7 +34,7 @@ The default file location for the config file is C:\\voyeur_rig_config\\olfa_con
 by passing the file location to the instantiating classes.
 
 
-## Use
+## Installation and basic use
 Use is straightforward if all dependancies are installed:
 * PyQt 4.8
 
@@ -42,7 +42,7 @@ Setup is easy using:
 
     python setup.py install
 
-Once the JSON configuration file is present in the correct directory, the GUI can be run from a python prompt:
+Once the [JSON configuration file](docs/json_specs.md) is present in the correct directory, the GUI can be run from a python prompt:
 
 ```
 
@@ -65,28 +65,8 @@ class MyGui(YourFavoriteQtGuiPackage):  # this works with Enthought's Traits whe
         self.olfas.show()  # just like any QWidget, this will make the olfactometers gui visible.
 ```
 
-### Key functions
-
-In an example, we have one olfactometer and want to open a vial (vial #3) and then close that vial:
-
-```python
-olfas = Olfactometers()  # configure our olfactometers. Note that we don't have to show the gui to open a vial.
-olfas[0].set_vial(3, valvestate=1)  # open vial from the first olfactometer in the list.
-olfas[0].set_vial(3, valvestate=0)  # close vial.
-```
-
-We can also open a vial based on the odor specified in the configuration:
-
-```python
-olfas[0].set_odor('alpha-pinene', conc= 0.01, valvestate=1)
-olfas[0].set_odor('alpha-pinene', conc= 0.01, valvestate=0)
-```
-
-Finally, we can set flowrates of our olfactometers' MFCs by passing a tuple:
-
-```python
-olfas[0].set_flows((900, 100)))  # Tuple is ordered by the MFC order in the JSON config.
-```
+## Use in "Voyeur"
+A helpful readme has been made for [implementing this package for use in Voyeur.](docs/voyeur_integration.md)
 
 # Olfactometer cleaning
 A cleaning module with gui is included in the olfactometry package. To use it from a python session:

@@ -5,7 +5,7 @@ import time
 from mfc import MFCclasses, MFC
 from dilutor import DILUTORS
 from serial import Serial, SerialException
-from utils import OlfaException
+from utils import OlfaException, flatten_dictionary
 
 import logging
 
@@ -93,6 +93,35 @@ class TeensyOlfa(Olfactometer):
 
         self.all_off()
 
+    def set_stimulus(self, stimulus_dict):
+        """
+        Sets stimulus based on stimulus dictionary defined in self.generate_stimulus_template()
+
+        :param stimulus_dict: dictionary conforming to stimulus template.
+        :type stimulus_dict: dict
+        :return: True if stimulus set successfully.
+        :rtype: bool
+        """
+        successes = []
+        dilspecs = stimulus_dict['dilutors']
+        odor = stimulus_dict['odor']
+        try:
+            vialconc = stimulus_dict['vialconc']
+        except KeyError:
+            vialconc = None
+        for i in xrange(len(dilspecs)):
+            dilutor = self.dilutors[i]
+            k = 'dilutor_{0}'.format(i)
+            success = dilutor.set_stimulus(dilspecs[k])
+            successes.append(success)
+        flows = []
+        for i in xrange(2):
+            k = 'mfc_{0}_flow'.format(i)
+            flows.append(stimulus_dict[k])
+        successes.append(self.set_flows(flows))
+        successes.append(self.set_odor(odor, vialconc))
+        return all(successes)
+
     def set_odor(self, odor, conc=None, valvestate=None):
         """
         Finds the exact matches for a vial with the specified odor / concentration.  Concentration is optional if only
@@ -135,7 +164,7 @@ class TeensyOlfa(Olfactometer):
                     valvestate = 1
 
             if vial_num == self.dummyvial:
-                return self.setdummyvial(valvestate)
+                return self.set_dummy_vial(valvestate)
 
             if valvestate:  # we're opening a vial, so we have to check some conditions first.
                 if not self.check_flows() and not override_checks:
@@ -324,7 +353,7 @@ class TeensyOlfa(Olfactometer):
             logging.error(repr(line))
             return False
 
-    def setdummyvial(self, valvestate=1):
+    def set_dummy_vial(self, valvestate=1):
         """
         Sets the dummy vial.
 
@@ -418,17 +447,36 @@ class TeensyOlfa(Olfactometer):
         self._valve_time_lockout = False
         return
 
-    def generate_stimulus_template(self):
+    def generate_stimulus_template_string(self):
         stim_template_dict = {'odor': 'str (odorname) or int (vialnumber).',
-                              'vialconc': 'float concentration of odor to be presented.',
-                              'flows': 'tuple: (int MFC1flow, int MFC2flow)'}
+                              'vialconc': 'float concentration of odor to be presented (optional if using vialnumber)'}
         dilutor_dict = dict()
+        for i in xrange(len(self.mfcs)):
+            k = 'mfc_{0}_flow'.format(i)
+            stim_template_dict[k] = 'numeric flowrate'
+
         for i in xrange(len(self.dilutors)):
             dilutor = self.dilutors[i]
             k = 'dilutor_{0}'.format(i)
-            dilutor_dict[k] = dilutor.generate_stimulus_template()
+            dilutor_dict[k] = dilutor.generate_stimulus_template_string()
         stim_template_dict['dilutors'] = dilutor_dict
         return stim_template_dict
+
+    def generate_tables_definition(self):
+        import tables
+        stim_template_dict = {'odor': tables.StringCol(32),
+                              'vialconc': tables.Float64Col()}
+        for i in xrange(len(self.mfcs)):
+            k = 'mfc_{0}_flow'.format(i)
+            stim_template_dict[k] = tables.Float64Col()
+        if self.dilutors:
+            stim_template_dict['dilutors'] = dict()
+            for i in xrange(len(self.dilutors)):
+                k = 'dilutor_{0}'.format(i)
+                dilutor = self.dilutors[i]
+                stim_template_dict['dilutors'][k] = dilutor.generate_tables_definition()
+        return flatten_dictionary(stim_template_dict)
+
 
 
 class VialGroup(QtGui.QWidget):
