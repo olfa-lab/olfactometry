@@ -79,6 +79,14 @@ class CalibrationViewer(QtGui.QMainWindow):
         filters_box = QtGui.QGroupBox("Trial filters.")
         filters_box_layout = QtGui.QVBoxLayout(filters_box)
         filters_scroll_area = QtGui.QScrollArea()
+        filters_buttons = QtGui.QHBoxLayout()
+        filters_all = QtGui.QPushButton('Select all', self)
+        filters_all.clicked.connect(self._select_all_filters)
+        filters_none = QtGui.QPushButton('Select none', self)
+        filters_none.clicked.connect(self._select_none_filters)
+        filters_buttons.addWidget(filters_all)
+        filters_buttons.addWidget(filters_none)
+        filters_box_layout.addLayout(filters_buttons)
         filters_box_layout.addWidget(filters_scroll_area)
         filters_wid = QtGui.QWidget()
         filters_scroll_area.setWidget(filters_wid)
@@ -90,7 +98,7 @@ class CalibrationViewer(QtGui.QMainWindow):
 
         plots_box = QtGui.QGroupBox()
         plots_box.setTitle('Plots')
-        plots_layout = QtGui.QVBoxLayout()
+        plots_layout = QtGui.QHBoxLayout()
 
         self.figure = Figure((9, 5))
         self.figure.patch.set_facecolor('None')
@@ -99,9 +107,18 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.canvas.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         plots_layout.addWidget(self.canvas)
         plots_box.setLayout(plots_layout)
+        # plots_layout.setSpacing(0)
         layout.addWidget(plots_box, 0, 3)
-        self.ax_pid = self.figure.add_subplot(111)
+        self.ax_pid = self.figure.add_subplot(2, 1, 1)
         self.ax_pid.set_title('PID traces')
+        self.ax_pid.set_ylabel('')
+        self.ax_pid.set_xlabel('t (ms)')
+        self.ax_mean_plots = self.figure.add_subplot(2, 1, 2)
+        self.ax_mean_plots.set_title('Mean value')
+        self.ax_mean_plots.set_ylabel('value')
+        self.ax_mean_plots.set_xlabel('Concentration')
+        self.figure.tight_layout()
+
 
     @QtCore.pyqtSlot()
     def _list_context_menu_trig(self):
@@ -165,8 +182,10 @@ class CalibrationViewer(QtGui.QMainWindow):
                 f.deleteLater()
         self.filters = list()
         colnames = trials.dtype.names
-        start_strings = ('olfas', 'dilutors')
-
+        if 'odorconc' not in colnames:
+            self.error = QtGui.QErrorMessage()
+            self.error.showMessage('Data file must have "odorconc" field to allow plotting.')
+        start_strings = ('odorconc', 'olfas', 'dilutors')
         filter_fields = []
         for ss in start_strings:
             for fieldname in colnames:
@@ -174,7 +193,6 @@ class CalibrationViewer(QtGui.QMainWindow):
                     filter_fields.append(fieldname)
 
         for field in filter_fields:
-            print field
             filter = FiltersListWidget(field)
             filter.populate_list(self.data.trials)
             filter.setVisible(False)
@@ -244,6 +262,7 @@ class CalibrationViewer(QtGui.QMainWindow):
             trialnum = self.trial_select_list.trial_num_list[idx]
             selected_trial_nums.append(trialnum)
         self.update_pid_plot(selected_trial_nums)
+        self.update_means_plot(selected_trial_nums)
         self.trial_group_list.blockSignals(True)
         for i, g in zip(xrange(self.trial_group_list.count()), self.trial_group_list.trial_groups):
             it = self.trial_group_list.item(i)
@@ -259,15 +278,19 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.trial_group_list.blockSignals(False)
         return
 
-    @QtCore.pyqtSlot()
+    # @QtCore.pyqtSlot()
     def _trial_group_selection_changed(self):
         selected_idxes = self.trial_group_list.selectedIndexes()
+        self._select_all_filters()
         selected_trial_nums = []
         for id in selected_idxes:
             idx = id.row()
             trialnums = self.trial_group_list.trial_groups[idx]['trial_nums']
             selected_trial_nums.extend(trialnums)
         self.trial_select_list.blockSignals(True)
+        for i in range(self.trial_select_list.count()):
+            item = self.trial_select_list.item(i)
+            self.trial_select_list.setItemSelected(item, False)
         for i in selected_trial_nums:
             idx = np.where(self.trial_select_list.trial_num_list == i)[0][0]
             it = self.trial_select_list.item(idx)
@@ -288,25 +311,39 @@ class CalibrationViewer(QtGui.QMainWindow):
                 self.ax_pid.plot(trial.streams['sniff'], color=color, alpha=a)
         self.canvas.draw()
 
-    def update_trials(self):
-        pass
+    def update_means_plot(self, trials):
+        trial_streams = []
+        self.ax_mean_plots.clear()
+        vals = []
+        if trials:
+            for tn in trials:
+                color = self.trial_group_list.check_trial_color(tn)
+                trial = self.data.return_trial(tn, padding=(2000,2000))
+                stream = trial.streams['sniff']
+                conc = trial.trials['odorconc']
+                baseline = np.mean(stream[:2000])
+                val = np.mean(stream[3000:4000]) - baseline
+                vals.append(val)
+                self.ax_mean_plots.plot(conc, val, '.', color=color)
+        if vals:
+            self.ax_mean_plots.set_ylim([0, max(vals)])
+            self.canvas.draw()
 
-    def _odor_constructor(self, trial_list):
-        self.odors = np.unique(trial_list['odor'])
+    @QtCore.pyqtSlot()
+    def _select_none_filters(self):
+        for filter in self.filters:
+            filter.filterChanged.disconnect(self._filters_changed)
+            filter.clearSelection()
+            filter.filterChanged.connect(self._filters_changed)
+        self._filters_changed()
 
-        select_list = QtGui.QListWidget()
-        for odor in self.odors:
-            item = QtGui.QListWidgetItem(odor, select_list)
-            item.setCheckState(True)
-            item.setData()
-        return select_list
-
-    def _vconc_constructor(self, trial_list):
-        self.vconcs = np.unique(trial_list['vialconc'])
-        select_list = QtGui.QListWidget()
-        for vc in self.vconcs:
-            item = QtGui.QListWidgetItem()
-            select_list.addItem(str(vc))
+    @QtCore.pyqtSlot()
+    def _select_all_filters(self):
+        for filter in self.filters:
+            filter.filterChanged.disconnect(self._filters_changed)
+            filter.selectAll()
+            filter.filterChanged.connect(self._filters_changed)
+        self._filters_changed()
 
 
 class TrialListWidget(QtGui.QListWidget):
@@ -344,6 +381,9 @@ class TrialGroupListWidget(QtGui.QListWidget):
         super(TrialGroupListWidget, self).__init__()
         self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.trial_groups = []
+        self.name_widget = QtGui.QInputDialog()
+        # self.itemPressed.connect(self._mouse_pressed)
+
 
     @QtCore.pyqtSlot(QtGui.QMouseEvent)
     def mousePressEvent(self, event):
@@ -351,6 +391,8 @@ class TrialGroupListWidget(QtGui.QListWidget):
         if button == QtCore.Qt.LeftButton:
             super(TrialGroupListWidget, self).mousePressEvent(event)
         elif button == QtCore.Qt.RightButton:
+            pos = event.pos()
+            self.click_position = pos
             popMenu = QtGui.QMenu()
             delGroupAction = QtGui.QAction('Remove groups', self)
             delGroupAction.triggered.connect(self._remove_groups)
@@ -360,6 +402,10 @@ class TrialGroupListWidget(QtGui.QListWidget):
             changeColorAction.triggered.connect(self._color_selection_triggered)
             changeColorAction.setStatusTip('Open color selection dialog to set group color.')
             popMenu.addAction(changeColorAction)
+            if self.itemAt(pos):
+                changeNameAction = QtGui.QAction('Change group name...', self)
+                popMenu.addAction(changeNameAction)
+                changeNameAction.triggered.connect(self._change_group_name)
             popMenu.exec_(event.globalPos())
 
     def check_trial_color(self, trialnum):
@@ -367,7 +413,6 @@ class TrialGroupListWidget(QtGui.QListWidget):
         for g in self.trial_groups:
             if trialnum in g['trial_nums']:
                 qc = g['color']
-                assert isinstance(qc, QtGui.QColor)
                 color = [qc.redF(), qc.greenF(), qc.blueF()]
         return color
 
@@ -396,7 +441,8 @@ class TrialGroupListWidget(QtGui.QListWidget):
 
     def _remove_groups(self):
         remove_idxes = []
-        for i in self.selectedIndexes():
+        # for i in self.selectedIndexes():
+        for i in []:
             ii = i.row()
             remove_idxes.append(ii)
         remove_idxes.sort(reverse=True)
@@ -416,21 +462,34 @@ class TrialGroupListWidget(QtGui.QListWidget):
 
     @QtCore.pyqtSlot(QtGui.QColor)
     def _change_group_color(self, color):
-
-        for item in self.selectedItems():
-            assert isinstance(item, QtGui.QListWidgetItem)
+        if not self.selectedItems() and self.itemAt(self.click_position):
+            item = self.itemAt(self.click_position)
+            itemidx = self.indexAt(self.click_position)
             item.setForeground(color)
-        for i in self.selectedIndexes():
-            ii = i.row()
+            ii = itemidx.row()
             tg = self.trial_groups[ii]
             tg['color'] = color
-        self.itemSelectionChanged.emit()
+        else:
+            for item in self.selectedItems():
+                item.setForeground(color)
+            for i in self.selectedIndexes():
+                ii = i.row()
+                tg = self.trial_groups[ii]
+                tg['color'] = color
+            self.itemSelectionChanged.emit()
+
+    @QtCore.pyqtSlot()
+    def _change_group_name(self):
+        item = self.itemAt(self.click_position)
+        self.change_name_dialog = QtGui.QInputDialog()
+        name, ok = self.change_name_dialog.getText(self, 'Change group name', 'Enter a new group name:')
+        if name and ok:
+            item.setText(name)
 
     def _remove_trials(self, removetrials):
         #TODO: connect this.
         for group in self.trial_groups:
             trials = group['trial_nums']
-            assert isinstance(trials, list)
             for i in removetrials:
                 if i in trials:
                     trials.remove(i)
@@ -849,6 +908,7 @@ class BehaviorTrial(BehaviorEpoch):
         super(BehaviorTrial, self).__init__(*args, **kwargs)
         # just want to check that this is in fact representing a single trial, and not many.
         assert len(self.trials) == 1, 'Warning: cannot initialize a BehaviorTrial object with more than one trial.'
+
 
 def main(config_path=''):
     import sys
