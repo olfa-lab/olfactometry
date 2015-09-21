@@ -127,6 +127,18 @@ class Dilutor(QtGui.QGroupBox):
         """
         self.serial.close()
 
+    def set_stimulus(self, stim_dict):
+        """
+        Sets dilutor flows based on stimulus dictionary defined in generate_stimulus_template.
+
+        :param stim_dict:
+        :
+        :return: True if set completed.
+        """
+        a = stim_dict['vac_flow']
+        b = stim_dict['air_flow']
+        return self.set_flows((a, b))
+
     def set_flows(self, flows):
         """
         Sets flowrates of attached MFCs.
@@ -145,6 +157,18 @@ class Dilutor(QtGui.QGroupBox):
                 successes.append(success)
             return all(successes)
 
+    def generate_stimulus_template_string(self):
+        stim_template_dict = {'dilution_factor': 'float (optional)',
+                              'vac_flow': 'int flowrate in flow units',
+                              'air_flow': 'int flowrate in flow units',}
+        return stim_template_dict
+
+    def generate_tables_definition(self):
+        import tables
+        tables_def = {'dilution_factor': tables.Float64Col(),
+                      'vac_flow': tables.Float64Col(),
+                      'air_flow': tables.Float64Col()}
+        return tables_def
 
 
 class DilutorCalibrator(object):

@@ -33,5 +33,39 @@ def get_olfa_config(config_filename=''):
     return config_filename, config
 
 
+def flatten_dictionary(dictionary, separator=':', flattened_dict=None, parent_string=''):
+    """
+    Flattens nested dictionary into a single dictionary:
+        {'hello': {'world': 1,
+                   'moon': 2}}
+    becomes:
+        {'hello:world': 1,
+         'hello:moon': 2}
+
+    Uses recursion to flatten as many layers as exist in your dictionary.
+
+    :param dictionary: nested dictionary you wish to flatten.
+    :param flattened_dict: (used for recursion) current flattened dictionary to add to
+    :param parent_string: (used for recursion) current key string to use as prefix for
+    :return: flattened dictionary
+    :type dictionary: dict
+    :type flattened_dict: dict
+    :type parent_string: str
+    :rtype: dict
+    """
+
+    if flattened_dict is None:  # dicts are mutable, so we shouldn't use a dict as the default argument!!!
+        flattened_dict = {}  # instead, redeclare an empty dictionary here.
+    for k, v in dictionary.iteritems():
+        if parent_string:
+            full_key = "{0}{1}{2}".format(parent_string, separator, k)
+        else:
+            full_key = k
+        if isinstance(v, dict):  # use recursion to flatten and add nested dictionaries to the product.
+            _ = flatten_dictionary(v, flattened_dict=flattened_dict, parent_string=full_key)
+        else:
+            flattened_dict[full_key] = v
+    return flattened_dict
+
 class OlfaException(Exception):
     pass
