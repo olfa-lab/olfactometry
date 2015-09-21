@@ -4,7 +4,7 @@ import tables as tb
 from PyQt4 import QtCore, QtGui
 import logging
 import os
-from matplotlib.backends.backend_qt4agg import FigureCanvas, NavigationToolbar2QTAgg
+from matplotlib.backends.backend_qt4agg import FigureCanvas
 from matplotlib.figure import Figure
 
 __author__ = 'chris'
@@ -17,11 +17,8 @@ class CalibrationViewer(QtGui.QMainWindow):
     trialsChanged = QtCore.pyqtSignal()
 
     def __init__(self):
+        self.filters = list()
         super(CalibrationViewer, self).__init__()
-        self.filters = [FiltersListWidget('odor'),
-                        FiltersListWidget('vialconc'),
-                        FiltersListWidget('odorconc'),
-                        DilutionListWidget('dilution')]
         self.setWindowTitle('Olfa Calibration')
         self.statusBar()
         self.trial_selected_list = []
@@ -79,19 +76,17 @@ class CalibrationViewer(QtGui.QMainWindow):
         layout.addWidget(trial_select_list_box, 0, 1)
         self.trial_select_list.createGroupSig.connect(self.trial_group_list.create_group)
 
-        filters_box = QtGui.QGroupBox()
-        filters_box.setTitle("Trial filters.")
-        filters_layout = QtGui.QVBoxLayout()
-        filters_box.setLayout(filters_layout)
+        filters_box = QtGui.QGroupBox("Trial filters.")
+        filters_box_layout = QtGui.QVBoxLayout(filters_box)
+        filters_scroll_area = QtGui.QScrollArea()
+        filters_box_layout.addWidget(filters_scroll_area)
+        filters_wid = QtGui.QWidget()
+        filters_scroll_area.setWidget(filters_wid)
+        filters_scroll_area.setWidgetResizable(True)
+        filters_scroll_area.setFixedWidth(300)
+        self.filters_layout = QtGui.QVBoxLayout()
+        filters_wid.setLayout(self.filters_layout)
         layout.addWidget(filters_box, 0, 2)
-        for v in self.filters:
-            assert isinstance(v, FiltersListWidget)
-            box = QtGui.QGroupBox()
-            box.setTitle(v.fieldname)
-            _filt_layout = QtGui.QVBoxLayout(box)
-            _filt_layout.addWidget(v)
-            filters_layout.addWidget(box)
-            v.filterChanged.connect(self._filters_changed)
 
         plots_box = QtGui.QGroupBox()
         plots_box.setTitle('Plots')
@@ -146,26 +141,63 @@ class CalibrationViewer(QtGui.QMainWindow):
             for i, t in enumerate(trials):
                 tstr = "Trial {0}".format(i)
                 it = QtGui.QListWidgetItem(tstr, self.trial_select_list)
-                trial = trials[i]
-                odor = trial['odor']
-                vialconc = trial['vialconc']
-                odorconc = trial['odorconc']
-                dilution = 1000 - trial['dilution'][0]
-                trst = 'Odor: {0}, vialconc: {1}, odorconc: {2}, dilution: {3}'.format(odor, vialconc, odorconc,
-                                                                                       dilution)
-                it.setStatusTip(trst)
+                # trial = trials[i]
+                # odor = trial['odor']
+                # vialconc = trial['vialconc']
+                # odorconc = trial['odorconc']
+                # dilution = 1000 - trial['dilution'][0]
+                # trst = 'Odor: {0}, vialconc: {1}, odorconc: {2}, dilution: {3}'.format(odor, vialconc, odorconc,
+                #                                                                        dilution)
+                # it.setStatusTip(trst)
                 trial_num_list.append(i)
             self.trial_select_list.trial_num_list = np.array(trial_num_list)
             self.trial_mask = np.ones(len(self.trial_select_list.trial_num_list), dtype=bool)
-            self.build_filters()
+            self.build_filters(trials)
         else:
             print('No file selected.')
         return
 
-    def build_filters(self):
+    def build_filters(self, trials):
+        while self.filters_layout.itemAt(0):
+            self.filters_layout.takeAt(0)
+        if self.filters:
+            for f in self.filters:
+                f.deleteLater()
+        self.filters = list()
+        colnames = trials.dtype.names
+        start_strings = ('olfas', 'dilutors')
+
+        filter_fields = []
+        for ss in start_strings:
+            for fieldname in colnames:
+                if fieldname.startswith(ss):
+                    filter_fields.append(fieldname)
+
+        for field in filter_fields:
+            print field
+            filter = FiltersListWidget(field)
+            filter.populate_list(self.data.trials)
+            filter.setVisible(False)
+            self.filters.append(filter)
+            box = QtGui.QWidget()
+            box.setSizePolicy(0, 0)
+            # box.setTitle(filter.fieldname)
+            show_button = QtGui.QPushButton(filter.fieldname)
+            show_button.setStyleSheet('text-align:left; border:0px')
+            show_button.clicked.connect(filter.toggle_visible)
+            _filt_layout = QtGui.QVBoxLayout(box)
+            _filt_layout.addWidget(show_button)
+            _filt_layout.addWidget(filter)
+            _filt_layout.setSpacing(0)
+            self.filters_layout.addWidget(box)
+            filter.filterChanged.connect(self._filters_changed)
         for v in self.filters:
             assert isinstance(v, FiltersListWidget)
-            v.populate_list(self.data.trials)
+
+        # self.filters_layout.addWidget(QtGui.QSpacerItem())
+        self.filters_layout.addStretch()
+        self.filters_layout.setSpacing(0)
+
         return
 
     @QtCore.pyqtSlot()
@@ -417,6 +449,7 @@ class FiltersListWidget(QtGui.QListWidget):
         :return:
         """
         super(FiltersListWidget, self).__init__()
+        self.setSpacing(0)
         self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.fieldname = fieldname
         self.list_values = np.array([])
@@ -437,7 +470,16 @@ class FiltersListWidget(QtGui.QListWidget):
             it = QtGui.QListWidgetItem(str(val), self)
             it.setSelected(True)
         self.itemSelectionChanged.connect(self._selection_changed)
+        self.setMaximumHeight(self.sizeHintForRow(0) * (max(len(self.list_values), 1) + .75))
         return
+
+    @QtCore.pyqtSlot()
+    def toggle_visible(self):
+        self.setVisible(not self.isVisible())
+        if not self.isVisible():
+            for i in xrange(self.count()):
+                field = self.item(i)
+                field.setSelected(True)
 
     @QtCore.pyqtSlot(QtGui.QMouseEvent)
     def mousePressEvent(self, event):
@@ -508,7 +550,10 @@ class FiltersListWidget(QtGui.QListWidget):
 
     def sizeHint(self):
         s = QtCore.QSize()
-        s.setHeight(self.sizeHintForRow(4))
+        # print self.count()
+        # print self.sizeHintForRow(0)
+        # s.setHeight(self.sizeHintForRow(self.count()))
+        s.setHeight(self.sizeHintForRow(0) * (max(len(self.list_values), 1) + .75))
         s.setWidth(super(FiltersListWidget, self).sizeHint().width())
         return s
 
@@ -804,7 +849,6 @@ class BehaviorTrial(BehaviorEpoch):
         super(BehaviorTrial, self).__init__(*args, **kwargs)
         # just want to check that this is in fact representing a single trial, and not many.
         assert len(self.trials) == 1, 'Warning: cannot initialize a BehaviorTrial object with more than one trial.'
-
 
 def main(config_path=''):
     import sys
