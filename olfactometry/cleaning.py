@@ -197,6 +197,7 @@ class Cleaner(QtGui.QWidget):
         self.progress_bar.setValue(progress)
         self.progress = progress
         self.i = 0  # now we're going to start from the beginning instead of from the last vial opened.
+        self.olfactometer.set_vial(self.olfactometer.dummyvial, valvestate=1)  # stop flow through dummy.
     
     def close(self):
         if self.olfactometer:
