@@ -15,17 +15,9 @@ olfactometer. Luckily there is a template generator:
     ```
 
 2. Next go to Tools:Stimulus Template...
-3. A dialog box should appear with a dictionary template that looks something like this:
 
-    ```python
-    {'olfas': {'olfa_0': {'dilutors': {'dilutor_0': {'air_flow': 'int flowrate in flow units',
-                                                     'dilution_factor': 'float (optional)',
-                                                     'vac_flow': 'int flowrate in flow units'}},
-                          'mfc_0_flow': 'numeric flowrate',
-                          'mfc_1_flow': 'numeric flowrate',
-                          'odor': 'str (odorname) or int (vialnumber).',
-                          'vialconc': 'float concentration of odor to be presented (optional if using vialnumber)'}}}
-    ```
+    ![noimage](images/stim_template.png)
+
 4. Copy and paste this template dictionary into your code and modify it with the values you wish to use for your stimulus.
 5. Now, to set these stimulus parameters, do the following:
 

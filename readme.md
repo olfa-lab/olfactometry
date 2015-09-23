@@ -35,7 +35,12 @@ by passing the file location to the instantiating classes.
 
 
 ## Installation and basic use
+This program is primarily written in Python. If you are new to Python, I highly recommend installing the great and free
+[Anaconda Python Distribution](https://store.continuum.io/cshop/anaconda/). It contains everything you will need here
+and more.
+
 Use is straightforward if all dependancies are installed:
+* Python 2.7
 * PyQt 4.8
 
 Setup is easy using:
@@ -51,6 +56,8 @@ Once the [JSON configuration file](docs/json_specs.md) is present in the correct
 >>> olfactometery.main(config_filename)
 >>> # if no filename is passed, it will use the default (C:\\voyeur_rig_config\\olfa_config.json)
 ```
+
+![noimage](docs/images/main.png)
 
 To use the package in a larger program is simple too:
 ```python
@@ -73,6 +80,8 @@ A cleaning module with gui is included in the olfactometry package. To use it fr
 
 ```python
 
->>> import olfactometry
+>>> import olfactometry.cleaning
 >>> olfactometry.cleaning.main()
 ```
+
+![noimage](docs/images/cleaning.png)
