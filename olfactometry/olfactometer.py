@@ -506,7 +506,7 @@ class VialGroup(QtGui.QWidget):
         self.vgroupbox.setLayout(buttonlayout)
         self.parent_device.vialChanged.connect(self.changeButton)
         self._checked = 0  # last checked button. updated by changeButton slot.
-
+        dummyvial = 4  # this is default for the teensy olfa.
         for valnum in self.valve_numbers:
             val = valve_config[str(valnum)]
             button = QtGui.QPushButton(str(valnum))
@@ -593,7 +593,7 @@ class VialGroup(QtGui.QWidget):
 
 def main():
     app = QtGui.QApplication(sys.argv)
-    conf = parse_rig_config()
+    conf = get_olfa_config()
     olf_conf = conf['olfas'][0]
     w = TeensyOlfa(None, olf_conf)
     w.show()
@@ -601,7 +601,7 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    from utils import parse_rig_config
+    from utils import get_olfa_config
 
     LOGGING_LEVEL = logging.DEBUG
     logger = logging.getLogger()

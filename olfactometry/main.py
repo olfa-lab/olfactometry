@@ -220,6 +220,12 @@ class Olfactometers(QtGui.QMainWindow):
         calibrationAction.triggered.connect(self._start_calibration)
         filemenu.addAction(calibrationAction)
 
+        exitAction = QtGui.QAction("&Quit", self)
+        exitAction.setShortcut("Ctrl+Q")
+        exitAction.setStatusTip("Quit program.")
+        exitAction.triggered.connect(QtGui.qApp.quit)
+        filemenu.addAction(exitAction)
+
 
     def _add_olfas(self, olfa_specs):
         """

@@ -5,7 +5,6 @@ sip.setapi('QVariant', 2)
 from PyQt4 import QtGui
 from main import *
 import cleaning
-# import calibration
 from utils import *
 import sys
 
