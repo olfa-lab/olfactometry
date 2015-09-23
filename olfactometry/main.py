@@ -215,6 +215,12 @@ class Olfactometers(QtGui.QMainWindow):
         stimTemplateAction.triggered.connect(self._stim_template_display)
         toolsmenu.addAction(stimTemplateAction)
 
+        calibrationAction = QtGui.QAction('Open calibration...', self)
+        calibrationAction.setStatusTip('Opens calibration widget.')
+        calibrationAction.triggered.connect(self._start_calibration)
+        filemenu.addAction(calibrationAction)
+
+
     def _add_olfas(self, olfa_specs):
         """
 
@@ -321,6 +327,11 @@ class Olfactometers(QtGui.QMainWindow):
     def _open_config(self):
         os.startfile(self.config_fn)
         return
+
+    def _start_calibration(self):
+        import calibration  # only import if required, because we have some other imports that will waste memory.
+        self.cal_view = calibration.CalibrationViewer()
+        self.cal_view.show()
 
     def __getitem__(self, olfa_idx):
         return self.olfas[olfa_idx]

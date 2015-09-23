@@ -5,11 +5,11 @@ sip.setapi('QVariant', 2)
 from PyQt4 import QtGui
 from main import *
 import cleaning
-import calibration
+# import calibration
 from utils import *
 import sys
 
 
-app = QtGui.QApplication.instance()
-if app is None:
-    app = QtGui.QApplication(sys.argv)
+qapp = QtGui.QApplication.instance()
+if qapp is None:
+    qapp = QtGui.QApplication(sys.argv)

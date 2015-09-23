@@ -1,11 +1,19 @@
 from __future__ import division
 import numpy as np
+import scipy.stats as stats
 import tables as tb
 from PyQt4 import QtCore, QtGui
 import logging
 import os
 from matplotlib.backends.backend_qt4agg import FigureCanvas
 from matplotlib.figure import Figure
+try:
+    from numba import jit  # used for detrending maths. Not required.
+except ImportError:
+    logging.warning('Numba is not installed. Please install numba package for optimal performance!')
+
+    def jit(a):
+        return a
 
 __author__ = 'chris'
 
@@ -107,7 +115,6 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.canvas.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
         plots_layout.addWidget(self.canvas)
         plots_box.setLayout(plots_layout)
-        # plots_layout.setSpacing(0)
         layout.addWidget(plots_box, 0, 3)
         self.ax_pid = self.figure.add_subplot(2, 1, 1)
         self.ax_pid.set_title('PID traces')
@@ -118,7 +125,6 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.ax_mean_plots.set_ylabel('value')
         self.ax_mean_plots.set_xlabel('Concentration')
         self.figure.tight_layout()
-
 
     @QtCore.pyqtSlot()
     def _list_context_menu_trig(self):
@@ -221,7 +227,10 @@ class CalibrationViewer(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def _saveFiguresAction_triggered(self):
         # TODO: add figure saving functionality with filedialog.getSaveFileName.
-        pass
+        self.saveDialog = QtGui.QFileDialog()
+        saveloc = self.saveDialog.getSaveFileName(self, 'Save figure', '', 'PDF (*.pdf);;JPEG (*.jpg);;TIFF (*.tif)')
+        saveloc = str(saveloc)
+        self.figure.savefig(saveloc)
 
     @QtCore.pyqtSlot()
     def _remove_trials(self):
@@ -252,7 +261,6 @@ class CalibrationViewer(QtGui.QMainWindow):
             f.remove_trials(remove_idxes)
         self.trial_group_list._remove_trials(remove_trialnums)
 
-
     @QtCore.pyqtSlot()
     def _trial_selection_changed(self):
         selected_idxes = self.trial_select_list.selectedIndexes()
@@ -261,8 +269,7 @@ class CalibrationViewer(QtGui.QMainWindow):
             idx = id.row()
             trialnum = self.trial_select_list.trial_num_list[idx]
             selected_trial_nums.append(trialnum)
-        self.update_pid_plot(selected_trial_nums)
-        self.update_means_plot(selected_trial_nums)
+        self.update_plots(selected_trial_nums)
         self.trial_group_list.blockSignals(True)
         for i, g in zip(xrange(self.trial_group_list.count()), self.trial_group_list.trial_groups):
             it = self.trial_group_list.item(i)
@@ -278,7 +285,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.trial_group_list.blockSignals(False)
         return
 
-    # @QtCore.pyqtSlot()
+    @QtCore.pyqtSlot()
     def _trial_group_selection_changed(self):
         selected_idxes = self.trial_group_list.selectedIndexes()
         self._select_all_filters()
@@ -299,35 +306,53 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.trial_select_list.blockSignals(False)
         self._trial_selection_changed()
 
-    def update_pid_plot(self, trials):
+    def update_plots(self, trials):
+        padding = (2000, 2000)  #TODO: make this changable - this is the number of ms before/afterr trial to extract for stream.
         trial_streams = []
-        self.ax_pid.clear()
+        trial_colors = []
+        while self.ax_pid.lines:
+            self.ax_pid.lines.pop(0)
+        while self.ax_mean_plots.lines:
+            self.ax_mean_plots.lines.pop(0)
+        groups_by_trial = []
+        all_groups = set()
+        ntrials = len(trials)
+        vals = np.empty(ntrials)
+        concs = np.empty_like(vals)
         if trials:
             a = max([1./len(trials), .25])
-            for tn in trials:
-                color = self.trial_group_list.check_trial_color(tn)
-                trial = self.data.return_trial(tn, padding=(2000, 2000))
-                trial_streams.append(trial.streams['sniff'])
-                self.ax_pid.plot(trial.streams['sniff'], color=color, alpha=a)
-        self.canvas.draw()
-
-    def update_means_plot(self, trials):
-        trial_streams = []
-        self.ax_mean_plots.clear()
-        vals = []
-        if trials:
-            for tn in trials:
-                color = self.trial_group_list.check_trial_color(tn)
-                trial = self.data.return_trial(tn, padding=(2000,2000))
-                stream = trial.streams['sniff']
+            for i, tn in enumerate(trials):
+                color = self.trial_group_list.get_trial_color(tn)
+                groups = self.trial_group_list.get_trial_groups(tn)
+                trial_colors.append(color)
+                groups_by_trial.append(groups)
+                all_groups.update(groups)
+                trial = self.data.return_trial(tn, padding=padding)
+                stream = remove_stream_trend(trial.streams['sniff'], (0, padding[0]))
+                stream -= stream[0:padding[0]].min()
+                # TODO: remove baseline (N2) trial average from this.
+                trial_streams.append(stream)
+                self.ax_pid.plot(stream, color=color, alpha=a)
                 conc = trial.trials['odorconc']
                 baseline = np.mean(stream[:2000])
                 val = np.mean(stream[3000:4000]) - baseline
-                vals.append(val)
+                vals[i] = val
+                concs[i] = conc
                 self.ax_mean_plots.plot(conc, val, '.', color=color)
-        if vals:
-            self.ax_mean_plots.set_ylim([0, max(vals)])
-            self.canvas.draw()
+        for g in all_groups:
+            mask = np.empty(ntrials, dtype=bool)
+            for i in xrange(ntrials):
+                groups = groups_by_trial[i]
+                mask[i] = g in groups
+            c = concs[mask]
+            if len(np.unique(c)) > 1:
+                v = vals[mask]
+                a, b, _, _, _ = stats.linregress(c, v)
+                color = self.trial_group_list.get_group_color(g)
+                minn, maxx = self.ax_mean_plots.get_xlim()
+                x = np.array([minn, maxx])
+                self.ax_mean_plots.plot(x, a*x + b, color=color)
+        self.canvas.draw()
 
     @QtCore.pyqtSlot()
     def _select_none_filters(self):
@@ -387,6 +412,7 @@ class TrialGroupListWidget(QtGui.QListWidget):
 
     @QtCore.pyqtSlot(QtGui.QMouseEvent)
     def mousePressEvent(self, event):
+        assert isinstance(event, QtGui.QMouseEvent)
         button = event.button()
         if button == QtCore.Qt.LeftButton:
             super(TrialGroupListWidget, self).mousePressEvent(event)
@@ -408,13 +434,28 @@ class TrialGroupListWidget(QtGui.QListWidget):
                 changeNameAction.triggered.connect(self._change_group_name)
             popMenu.exec_(event.globalPos())
 
-    def check_trial_color(self, trialnum):
+    def get_trial_color(self, trialnum):
         color = 'b'
         for g in self.trial_groups:
             if trialnum in g['trial_nums']:
                 qc = g['color']
+                assert isinstance(qc, QtGui.QColor)
                 color = [qc.redF(), qc.greenF(), qc.blueF()]
         return color
+
+    def get_group_color(self, groupnum):
+        g = self.trial_groups[groupnum]
+        qc = g['color']
+        return [qc.redF(), qc.greenF(), qc.blueF()]
+
+    def get_trial_groups(self, trialnum):
+        groups = []
+        trial_groups = self.trial_groups
+        for i in xrange(self.count()):
+            g = trial_groups[i]
+            if trialnum in g['trial_nums']:
+                groups.append(i)
+        return groups
 
     @QtCore.pyqtSlot(list)
     def create_group(self, trial_numbers):
@@ -441,17 +482,16 @@ class TrialGroupListWidget(QtGui.QListWidget):
 
     def _remove_groups(self):
         remove_idxes = []
-        # for i in self.selectedIndexes():
-        for i in []:
+        for i in self.selectedIndexes():
             ii = i.row()
             remove_idxes.append(ii)
         remove_idxes.sort(reverse=True)
-        for i in remove_idxes:
-            del self.trial_groups[i]
         while self.selectedIndexes():
             i = self.selectedIndexes()[0]
             ii = i.row()
             self.takeItem(ii)
+        for i in remove_idxes:
+            del self.trial_groups[i]
         return
 
     def _color_selection_triggered(self):
@@ -481,6 +521,7 @@ class TrialGroupListWidget(QtGui.QListWidget):
     @QtCore.pyqtSlot()
     def _change_group_name(self):
         item = self.itemAt(self.click_position)
+        assert isinstance(item, QtGui.QListWidgetItem)
         self.change_name_dialog = QtGui.QInputDialog()
         name, ok = self.change_name_dialog.getText(self, 'Change group name', 'Enter a new group name:')
         if name and ok:
@@ -615,28 +656,6 @@ class FiltersListWidget(QtGui.QListWidget):
         s.setHeight(self.sizeHintForRow(0) * (max(len(self.list_values), 1) + .75))
         s.setWidth(super(FiltersListWidget, self).sizeHint().width())
         return s
-
-
-class DilutionListWidget(FiltersListWidget):
-
-    def populate_list(self, trials):
-        self.clear()
-        try:
-            dil_flows = trials['dilution']
-            n2 = trials['NitrogenFlow_1']
-            air = trials['AirFlow_1']
-            t_flow = air + n2
-            trial_vals = (t_flow - dil_flows[:, 0]) / t_flow
-            self.trial_values = trial_vals
-            self.trial_mask = np.ones(len(trial_vals), dtype=bool)
-            listvals = np.unique(trial_vals)
-            self.list_values = listvals
-            for val in listvals:
-                it = QtGui.QListWidgetItem(str(val), self)
-                it.setSelected(True)
-        except:
-            pass
-        return
 
 
 class RichData(object):
@@ -821,8 +840,7 @@ class CalibrationFile(object):
                     events[k] = np.array([], dtype=ev.dtype)
         for k, stream_node in self.streams.iteritems():
             if read_streams:
-                streams[k] = stream_node[start_time:end_time]  # reads these values from the stream node into memory.
-                #TODO: fix this to realize and correct for sample rate discrepancies.
+                streams[k] = np.copy(stream_node[start_time:end_time])  # reads these values from the stream node into memory.
             elif not read_streams:
                 #TODO: implement function where we can read values that we want later instead of loading into memory now.
                 pass
@@ -867,6 +885,28 @@ class CalibrationFile(object):
             start -= padding[0]
         end += padding[1]
         return self.return_time_period(start, end)
+
+
+@jit  # this is a >30x performance over native python (30 ms vs <1 ms)
+def remove_stream_trend(stream, slice_indeces, x=None):
+    """
+    Finds trend in stream[slice_indeces] using linear regression and removes it from entire stream
+
+    :param stream: stream to detrend.
+    :param sample_indeces: (start, stop) indeces prior to stimulus onset. This defines the trend.
+    :param x: optional x array.
+    :return: detrended array
+    :type stream: np.array
+    :rtype: np.array
+    """
+
+    stream_slice = stream[slice_indeces[0]:slice_indeces[1]]
+    if not x:
+        x = np.linspace(0, len(stream_slice)-1, len(stream_slice))
+    a, b, _, _, _ = stats.linregress(x, stream_slice)
+    for i in xrange(len(stream)):
+        stream[i] -= i * a
+    return stream
 
 
 class BehaviorEpoch(object):
