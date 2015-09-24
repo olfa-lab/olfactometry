@@ -107,6 +107,12 @@ class Olfactometers(QtGui.QMainWindow):
         """
 
         successes = []
+        if not hasattr(odors, '__iter__'):
+            if len(self.olfas) < 2:
+                odors = (odors, )  # make into tuple
+        if not hasattr(concs, '__iter__'):
+            if len(self.olfas) < 2:
+                concs = (concs, )  # make into tuple
         if not len(odors) == len(self.olfas):
             raise OlfaException('Number of odors specified must be equal to the number of olfactometers.')
         if not valvestates:

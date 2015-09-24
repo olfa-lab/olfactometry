@@ -120,10 +120,12 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.ax_pid.set_title('PID traces')
         self.ax_pid.set_ylabel('')
         self.ax_pid.set_xlabel('t (ms)')
+        # self.ax_pid.set_yscale('log')
         self.ax_mean_plots = self.figure.add_subplot(2, 1, 2)
         self.ax_mean_plots.set_title('Mean value')
         self.ax_mean_plots.set_ylabel('value')
         self.ax_mean_plots.set_xlabel('Concentration')
+        self.ax_mean_plots.autoscale(enable=True, axis=u'both', tight=False)
         self.figure.tight_layout()
 
     @QtCore.pyqtSlot()
@@ -339,19 +341,33 @@ class CalibrationViewer(QtGui.QMainWindow):
                 vals[i] = val
                 concs[i] = conc
                 self.ax_mean_plots.plot(conc, val, '.', color=color)
+        minlen = 500000000
+        for i in trial_streams:
+            minlen = min(len(i), minlen)
+        streams_array = np.empty((ntrials, minlen))
+        for i in xrange(ntrials):
+            streams_array[i, :] = trial_streams[i][:minlen]
         for g in all_groups:
             mask = np.empty(ntrials, dtype=bool)
             for i in xrange(ntrials):
                 groups = groups_by_trial[i]
                 mask[i] = g in groups
             c = concs[mask]
-            if len(np.unique(c)) > 1:
+            groupstreams = streams_array[mask]
+            if len(np.unique(c)) < 2:
+                self.ax_pid.plot(groupstreams.mean(axis=0), color='k', linewidth=2)
+            else:
                 v = vals[mask]
                 a, b, _, _, _ = stats.linregress(c, v)
                 color = self.trial_group_list.get_group_color(g)
                 minn, maxx = self.ax_mean_plots.get_xlim()
                 x = np.array([minn, maxx])
                 self.ax_mean_plots.plot(x, a*x + b, color=color)
+        self.ax_pid.relim()
+        self.ax_mean_plots.set_yscale('log')
+        self.ax_mean_plots.set_xscale('log')
+        self.ax_mean_plots.relim()
+
         self.canvas.draw()
 
     @QtCore.pyqtSlot()
