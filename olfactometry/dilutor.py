@@ -1,10 +1,10 @@
 __author__ = 'chris'
 
 from PyQt4 import QtCore, QtGui
-from serial import Serial, SerialException
+from serial import SerialException
 from mfc import MFCclasses, MFC
 import logging
-from utils import OlfaException
+from utils import OlfaException, connect_serial
 
 
 class Dilutor(QtGui.QGroupBox):
@@ -17,18 +17,8 @@ class Dilutor(QtGui.QGroupBox):
         super(Dilutor, self).__init__()
 
         baudrate = 115200
-        com_port = "COM{0}".format(config['com_port'])
-
-        try:
-            self.serial = Serial(com_port, baudrate=baudrate, timeout=1, writeTimeout=1)
-        except SerialException as e:
-            print("Serial not found on {0}.".format(com_port))
-            print('Listing current serial ports with devices:')
-            from serial.tools import list_ports
-            for ser in list_ports.comports():
-                ser_str = '\t{0}: {1}'.format(ser[0], ser[1])
-                print ser_str
-            raise e
+        com_port = config['com_port']
+        self.serial = connect_serial(com_port, baudrate=baudrate, timeout=1, writeTimeout=1)
         self._eol = '\r'
 
         layout = QtGui.QHBoxLayout()

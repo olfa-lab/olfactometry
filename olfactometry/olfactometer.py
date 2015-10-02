@@ -4,8 +4,8 @@ from PyQt4 import QtCore, QtGui
 import time
 from mfc import MFCclasses, MFC
 from dilutor import DILUTORS
-from serial import Serial, SerialException
-from utils import OlfaException, flatten_dictionary
+from serial import SerialException
+from utils import OlfaException, flatten_dictionary, connect_serial
 
 import logging
 
@@ -62,18 +62,10 @@ class TeensyOlfa(Olfactometer):
 
         # CONFIGURE SERIAL
         baudrate = 115200
-        com_port = "COM{0}".format(config_dict['com_port'])
+
+        com_port = config_dict['com_port']
         logging.info('Starting Teensy Olfactometer on {0}'.format(com_port))
-        try:
-            self.serial = Serial(com_port, baudrate=baudrate, timeout=1, writeTimeout=1)
-        except SerialException as e:
-            print("Serial not found on {0}.".format(com_port))
-            print('Listing current serial ports with devices:')
-            from serial.tools import list_ports
-            for ser in list_ports.comports():
-                ser_str = '\t{0}: {1}'.format(ser[0], ser[1])
-                print ser_str
-            raise e
+        self.serial = connect_serial(com_port, baudrate=baudrate, timeout=1, writeTimeout=1)
 
         # CONFIGURE DEVICES
         self.dilutors = self._config_dilutors(config_dict.get('Dilutors', {}))

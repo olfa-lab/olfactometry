@@ -3,6 +3,9 @@ __author__ = 'chris'
 import os
 import json
 import logging
+import serial
+from serial.tools import list_ports
+import time
 
 
 CONFIG_FILENAME_DEFAULT = 'C:\\voyeur_rig_config\\olfa_config.json'
@@ -66,6 +69,36 @@ def flatten_dictionary(dictionary, separator=':', flattened_dict=None, parent_st
         else:
             flattened_dict[full_key] = v
     return flattened_dict
+
+
+def connect_serial(port, baudrate=115200, timeout=1, writeTimeout=1):
+    """
+    Return Serial object after making sure that the port is accessible and that the port is expressed as a string.
+
+    :param port: str or int (ie "COM4" or 4 for Windows).
+    :param baudrate: baudrate.
+    :param timeout: read timeout in seconds, default 1 sec.
+    :param writeTimeout: write timeout in seconds, default 1 sec.
+    :return: serial port object.
+    :rtype: serial.Serial
+    """
+
+    if isinstance(port, int):
+        port = "COM{0}".format(port)
+    names_list = list()
+    for i in list_ports.comports():
+        names_list.append(i[0])
+    if port not in names_list:
+        print("Serial not found on {0}.".format(port))
+        print('Listing current serial ports with devices:')
+        for ser in list_ports.comports():
+            ser_str = '\t{0}: {1}'.format(ser[0], ser[1])
+            print ser_str
+        time.sleep(.01)  # just to let the above lines print before the exemption is raised. cleans console output.
+        raise serial.SerialException('Requested COM port: {0} is not listed as connected.'.format(port))
+    else:
+        return serial.Serial(port, baudrate=baudrate, timeout=timeout, writeTimeout=writeTimeout)
+
 
 class OlfaException(Exception):
     pass
