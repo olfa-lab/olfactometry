@@ -16,6 +16,7 @@ class Olfactometer(QtGui.QGroupBox):
 
     def __init__(self, *args, **kwargs):
         super(Olfactometer, self).__init__(*args, **kwargs)
+        self.check_flows_before_opening = True
 
     def stop_mfc_polling(self):
         raise OlfaException('stop_mfc_polling must be defined by olfactometer class')
@@ -40,6 +41,11 @@ class Olfactometer(QtGui.QGroupBox):
         :return:
         """
 
+    @QtCore.pyqtSlot(bool)
+    def check_flows_changed(self, checked):
+        self.check_flows_before_opening = checked
+        return
+
 class TeensyOlfa(Olfactometer):
 
 
@@ -51,7 +57,6 @@ class TeensyOlfa(Olfactometer):
         :return:
         """
         super(TeensyOlfa, self).__init__()
-
         self.config = config_dict
         self.slaveindex = config_dict['slave_index']
         self.polling_interval = mfc_polling_interval
@@ -218,13 +223,16 @@ class TeensyOlfa(Olfactometer):
         """
 
         flows_on = True
-        for i, mfc in enumerate(self.mfcs):
-            time_elapsed = time.time() - mfc.last_poll_time
-            if time_elapsed > 2.1 * self.polling_interval:
-                raise OlfaException('MFC polling is not ok.')
-            elif mfc.flow <= 0.:
-                logging.warning('MFC {0} reporting no flow.'.format(i))
-                flows_on = False
+        if self.check_flows_before_opening:
+            for i, mfc in enumerate(self.mfcs):
+                time_elapsed = time.time() - mfc.last_poll_time
+                if time_elapsed > 2.1 * self.polling_interval:
+                    raise OlfaException('MFC polling is not ok.')
+                elif mfc.flow <= 0.:
+                    logging.warning('MFC {0} reporting no flow.'.format(i))
+                    flows_on = False
+        else:
+            pass
         return flows_on
 
     def set_dilution(self, dilution_factor=None, flows=None):
@@ -306,7 +314,7 @@ class TeensyOlfa(Olfactometer):
             mfc = self.mfcs[i]
             assert isinstance(mfc, MFC)
             success = mfc.poll()
-            if mfc.flow < 0.:
+            if mfc.flow < 0. and self.check_flows_before_opening:
                 self.all_off()
                 raise OlfaException('MFC is reporting no flow. Cannot continue.')
             if not success:
@@ -594,7 +602,7 @@ def main():
 if __name__ == "__main__":
     import sys
     from utils import get_olfa_config
-
+    CHECK_FLOW = True
     LOGGING_LEVEL = logging.DEBUG
     logger = logging.getLogger()
     handler = logging.StreamHandler()

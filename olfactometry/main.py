@@ -26,6 +26,8 @@ class Olfactometers(QtGui.QMainWindow):
             self.config_fn, self.config_obj = get_olfa_config(config_obj)
         else:
             raise OlfaException("Passed config_obj is of unknown type. Can be a dict, path to JSON or None.")
+        menubar = self.menuBar()
+        self._buildmenubar(menubar)
         self.olfa_specs = self.config_obj['Olfactometers']
         self.olfas = self._add_olfas(self.olfa_specs)
         try:
@@ -42,8 +44,7 @@ class Olfactometers(QtGui.QMainWindow):
         central_widget.setLayout(layout)
         self.statusBar()
 
-        menubar = self.menuBar()
-        self._buildmenubar(menubar)
+
         QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('CleanLooks'))
 
     def set_stimulus(self, stimulus_dictionary):
@@ -232,6 +233,14 @@ class Olfactometers(QtGui.QMainWindow):
         exitAction.triggered.connect(QtGui.qApp.quit)
         filemenu.addAction(exitAction)
 
+        self.check_flows_before_opening_action = QtGui.QAction("Flow checking", self)
+        self.check_flows_before_opening_action.setStatusTip('Enable or disable flow check prior to opening valves.')
+        self.check_flows_before_opening_action.setCheckable(True)
+        self.check_flows_before_opening_action.setChecked(True)
+        toolsmenu.addAction(self.check_flows_before_opening_action)
+
+
+
 
     def _add_olfas(self, olfa_specs):
         """
@@ -248,6 +257,7 @@ class Olfactometers(QtGui.QMainWindow):
                 olfatype = 'teensy'
             if olfatype == 'teensy':
                 olfa = TeensyOlfa(self, config_dict=o)
+                self.check_flows_before_opening_action.toggled.connect(olfa.check_flows_changed)
                 olfa.setTitle('Olfactometer {0}'.format(i))
             olfas.append(olfa)
         return olfas
@@ -378,6 +388,7 @@ def main(config_path=''):
 
 
 if __name__ == "__main__":
+    CHECK_FLOWS = True
     LOGGING_LEVEL = logging.DEBUG
     logger = logging.getLogger()
     handler = logging.StreamHandler()
