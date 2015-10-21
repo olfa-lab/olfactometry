@@ -9,17 +9,38 @@ from utils import OlfaException, flatten_dictionary, connect_serial
 
 import logging
 
-class Olfactometer(QtGui.QGroupBox):
 
+class Olfactometer(QtGui.QGroupBox):
     vialChanged = QtCore.pyqtSignal(int)  # this signal should be used when a vial is set.
     # It is connected to valvegroup button setting.
 
     def __init__(self, *args, **kwargs):
         super(Olfactometer, self).__init__(*args, **kwargs)
-        self.check_flows_before_opening = True
+        self.check_flows_before_opening = True  # this will check
+
+    def set_stimulus(self, stimulus_dict):
+        pass
+
+    def set_odor(self, odor, conc=None, valvestate=None):
+        pass
+
+    def set_flows(self, flows):
+        pass
+
+    def check_flows(self):
+        pass
+
+    def send_command(self, command, tries=1):
+        pass
 
     def stop_mfc_polling(self):
         raise OlfaException('stop_mfc_polling must be defined by olfactometer class')
+
+    def restart_mfc_polling(self):
+        pass
+
+    def read_line(self):
+        pass
 
     def all_off(self):
         """
@@ -41,13 +62,19 @@ class Olfactometer(QtGui.QGroupBox):
         :return:
         """
 
+    def generate_tables_definition(self):
+        pass
+
+    def generate_stimulus_template_string(self):
+        pass
+
     @QtCore.pyqtSlot(bool)
     def check_flows_changed(self, checked):
         self.check_flows_before_opening = checked
         return
 
-class TeensyOlfa(Olfactometer):
 
+class TeensyOlfa(Olfactometer):
 
     def __init__(self, parent, config_dict, mfc_polling_interval=2.):
         """
@@ -602,7 +629,6 @@ def main():
 if __name__ == "__main__":
     import sys
     from utils import get_olfa_config
-    CHECK_FLOW = True
     LOGGING_LEVEL = logging.DEBUG
     logger = logging.getLogger()
     handler = logging.StreamHandler()

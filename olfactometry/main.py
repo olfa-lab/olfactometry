@@ -11,6 +11,7 @@ import os
 
 class Olfactometers(QtGui.QMainWindow):
     """
+    Mainwindow and container for olfactometer objects.
 
     Also, acts like a list of olfactometers (actual objects stored in self.olfas). So Olfactometers[0] returns the first
     olfactometer in the configuration file.
@@ -43,8 +44,6 @@ class Olfactometers(QtGui.QMainWindow):
         self.setCentralWidget(central_widget)
         central_widget.setLayout(layout)
         self.statusBar()
-
-
         QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('CleanLooks'))
 
     def set_stimulus(self, stimulus_dictionary):
@@ -239,9 +238,6 @@ class Olfactometers(QtGui.QMainWindow):
         self.check_flows_before_opening_action.setChecked(True)
         toolsmenu.addAction(self.check_flows_before_opening_action)
 
-
-
-
     def _add_olfas(self, olfa_specs):
         """
 
@@ -388,7 +384,6 @@ def main(config_path=''):
 
 
 if __name__ == "__main__":
-    CHECK_FLOWS = True
     LOGGING_LEVEL = logging.DEBUG
     logger = logging.getLogger()
     handler = logging.StreamHandler()
