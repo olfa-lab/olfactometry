@@ -259,7 +259,7 @@ class Olfactometers(QtGui.QMainWindow):
         return olfas
 
     def _add_dillutors(self, dilutor_specs):
-        pass
+        return []
 
     @QtCore.pyqtSlot()
     def _reload_config(self):

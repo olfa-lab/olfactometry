@@ -595,7 +595,7 @@ class VialGroup(QtGui.QWidget):
         :rtype: int
         """
         odor_matches = []
-        for k, v in self.valve_config:
+        for k, v in self.valve_config.iteritems():
             if 'odor' in v.keys() and odor.lower() == v['odor'].lower():
                 odor_matches.append(k)
 
