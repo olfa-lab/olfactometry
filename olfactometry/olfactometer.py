@@ -87,6 +87,7 @@ class TeensyOlfa(Olfactometer):
         self.config = config_dict
         self.slaveindex = config_dict['slave_index']
         self.polling_interval = mfc_polling_interval
+        self.setTitle('Teensy Olfa (COM:{0})'.format(config_dict['com_port']))
 
         self.dummyvial = self._config_dummy(config_dict["Vials"])
         self.checked_id = self.dummyvial

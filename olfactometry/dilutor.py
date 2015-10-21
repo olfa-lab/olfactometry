@@ -30,7 +30,7 @@ class Dilutor(QtGui.QGroupBox):
         for mfc in self.mfcs:
             layout.addWidget(mfc)
 
-        self.setTitle('Dilutor ({0})'.format(com_port))
+        self.setTitle('Dilutor (COM:{0})'.format(com_port))
         self.setLayout(layout)
 
         return
@@ -159,10 +159,6 @@ class Dilutor(QtGui.QGroupBox):
                       'vac_flow': tables.Float64Col(),
                       'air_flow': tables.Float64Col()}
         return tables_def
-
-
-class DilutorCalibrator(object):
-    pass
 
 
 DILUTORS = {'serial_forwarding': Dilutor,}

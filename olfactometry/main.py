@@ -3,7 +3,7 @@ __author__ = 'chris'
 from PyQt4 import QtCore, QtGui
 from utils import get_olfa_config, OlfaException, flatten_dictionary
 from olfactometer import TeensyOlfa, Olfactometer
-from dilutor import Dilutor
+from dilutor import DILUTORS
 from pprint import pformat
 import logging
 import os
@@ -30,16 +30,18 @@ class Olfactometers(QtGui.QMainWindow):
         menubar = self.menuBar()
         self._buildmenubar(menubar)
         self.olfa_specs = self.config_obj['Olfactometers']
-        self.olfas = self._add_olfas(self.olfa_specs)
+        self.olfas = self._config_olfas(self.olfa_specs)
         try:
             self.dilutor_specs = self.config_obj['Dilutors']  # configure *global* dilutors.
-            self.dilutors = self._add_dillutors(self.dilutor_specs)
-        except KeyError:  # no global Dilutors are specified, which is OK!
+            self.dilutors = self._config_dilutors(self.dilutor_specs)
+        except (TypeError, KeyError):  # no global Dilutors are specified, which is OK!
             self.dilutors = []
         self.setWindowTitle("Olfactometry")
         layout = QtGui.QVBoxLayout()
         for olfa in self.olfas:
             layout.addWidget(olfa)
+        for dilutor in self.dilutors:
+            layout.addWidget(dilutor)
         central_widget = QtGui.QWidget()
         self.setCentralWidget(central_widget)
         central_widget.setLayout(layout)
@@ -238,7 +240,7 @@ class Olfactometers(QtGui.QMainWindow):
         self.check_flows_before_opening_action.setChecked(True)
         toolsmenu.addAction(self.check_flows_before_opening_action)
 
-    def _add_olfas(self, olfa_specs):
+    def _config_olfas(self, olfa_specs):
         """
 
         :param olfa_specs: tuple of olfactometer specs from olfa dict.
@@ -254,12 +256,26 @@ class Olfactometers(QtGui.QMainWindow):
             if olfatype == 'teensy':
                 olfa = TeensyOlfa(self, config_dict=o)
                 self.check_flows_before_opening_action.toggled.connect(olfa.check_flows_changed)
-                olfa.setTitle('Olfactometer {0}'.format(i))
+                olfa.setTitle(olfa.title() + ' ({0})'.format(i))
             olfas.append(olfa)
         return olfas
 
-    def _add_dillutors(self, dilutor_specs):
-        return []
+    def _config_dilutors(self, dilutor_config):
+        """
+        Add dilutor objects.
+
+        :param dilutor_config: list of dicts specifying dilutor configurations.
+        :return:
+        """
+        dilutors = []
+        for i in xrange(len(dilutor_config)):
+            v = dilutor_config[i]
+            dilutor_type = v['dilutor_type']
+            logging.debug('Configuring {0} dilutor.'.format(dilutor_type))
+            dil = DILUTORS[dilutor_type](self, v)
+            dilutors.append(dil)
+            dil.setTitle(dil.title() + " ({0})".format(i))
+        return dilutors
 
     @QtCore.pyqtSlot()
     def _reload_config(self):
@@ -277,7 +293,7 @@ class Olfactometers(QtGui.QMainWindow):
         self.olfas = []
         _, config_obj = get_olfa_config(self.config_fn)
         self.olfa_specs = config_obj['Olfactometers']
-        self.olfas = self._add_olfas(self.olfa_specs)
+        self.olfas = self._config_olfas(self.olfa_specs)
         for o in self.olfas:
             self.centralWidget().layout().addWidget(o)
         return
