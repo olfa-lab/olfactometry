@@ -11,14 +11,14 @@
 
       "MFCs": [
         {
-          "MFC_type": "alicat_digital_arduino",
+          "MFC_type": "alicat_digital",
           "capacity": 1000,
           "arduino_port_num": 1,
           "address": "A",
           "gas": "Air"
         },
         {
-          "MFC_type": "alicat_digital_arduino",
+          "MFC_type": "alicat_digital",
           "capacity": 100,
           "arduino_port_num": 2,
           "address": "A",
