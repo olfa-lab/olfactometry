@@ -1,5 +1,7 @@
 # Olfactometer Cleaning
 
+![noimage](images/cleaning.png)
+
 This is the protocol for cleaning olfactometers using this software and standard lab protocol.
 
 ## Solutions
