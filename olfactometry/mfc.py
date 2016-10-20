@@ -131,10 +131,9 @@ class MFC(QtGui.QGroupBox):
 class MFCAnalog(MFC):
     def get_flowrate(self, *args, **kwargs):
         """ get MFC flow rate measure as a percentage of total capacity (0.0 to 100.0)"""
-        if self.olfa is None:
-            return
+
         command = "MFC " + str(self.parent_device.slaveindex) + " " + str(self.arduino_port)
-        rate = self.olfa.send_command(command)
+        rate = self.parent_device.send_command(command)
         if (rate < 0):
             print "Couldn't get MFC flow rate measure"
             print "mfc index: " + str(self.arduino_port), "error code: ", rate
@@ -145,15 +144,14 @@ class MFCAnalog(MFC):
     def set_flowrate(self, flowrate, *args, **kwargs):
         """ sets the value of the MFC flow rate setting as a % from 0.0 to 100.0
             argument is the absolute flow rate """
-        if self.olfa is None:
-            return
+
         if flowrate > self.capacity or flowrate < 0:
             return  # warn about setting the wrong value here
         # if the rate is already what it should be don't do anything
         if abs(flowrate - self.flow) < 0.0005:
             return  # floating points have inherent imprecision when using comparisons
         command = "MFC " + str(self.parent_device.slaveindex) + " " + str(self.arduino_port) + " " + str(flowrate * 1.0 / self.capacity)
-        set = self.olfa.send_command(command)
+        set = self.parent_device.send_command(command)
         if(set != "MFC set\r\n"):
             print "Error setting MFC: ", set
             return False

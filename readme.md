@@ -76,7 +76,7 @@ class MyGui(YourFavoriteQtGuiPackage):  # this works with Enthought's Traits whe
 A helpful readme has been made for [implementing this package for use in Voyeur.](docs/voyeur_integration.md)
 
 # Olfactometer cleaning
-A cleaning module with gui is included in the olfactometry package. To use it from a python session:
+A [cleaning module](docs/cleaning.md) with gui is included in the olfactometry package. To use it from a python session:
 
 ```python
 
