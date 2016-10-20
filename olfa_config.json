@@ -1,92 +1,88 @@
 {
-  "Olfactometers": [
-    {
-      "interface": "teensy",
-      "com_port": 4,
-      "master_sn": 212,
-      "cassette_1_sn": 1222,
-      "cassette_2_sn": 1234,
-      "cleandate": 20140101,
-      "slave_index": 1,
-
-      "MFCs": [
-        {
-          "MFC_type": "alicat_digital",
-          "capacity": 1000,
-          "arduino_port_num": 1,
-          "address": "A",
-          "gas": "Air"
-        },
-        {
-          "MFC_type": "alicat_digital",
-          "capacity": 100,
-          "arduino_port_num": 2,
-          "address": "A",
-          "gas": "Nitrogen"
-        }
-      ],
-      "Dilutors": [
-        {
-          "dilutor_type": "serial_forwarding",
-          "com_port": 11,
-          "MFCs": [
+   "Dilutors" : [],
+   "Olfactometers" : [
+      {
+         "Dilutors" : [
             {
-              "MFC_type": "alicat_digital_raw",
-              "capacity": 2000,
-              "address": "A",
-              "gas": "vac"
+               "MFCs" : [
+                  {
+                     "MFC_type" : "alicat_digital_raw",
+                     "address" : "A",
+                     "capacity" : 2000,
+                     "gas" : "vac"
+                  },
+                  {
+                     "MFC_type" : "alicat_digital_raw",
+                     "address" : "B",
+                     "capacity" : 2000,
+                     "gas" : "Air"
+                  }
+               ],
+               "com_port" : 5,
+               "dilutor_type" : "serial_forwarding"
+            }
+         ],
+         "MFCs" : [
+            {
+               "MFC_type" : "alicat_digital",
+               "address" : "A",
+               "arduino_port_num" : 1,
+               "capacity" : 1000,
+               "gas" : "Air"
             },
             {
-              "MFC_type": "alicat_digital_raw",
-              "capacity": 2000,
-              "address": "B",
-              "gas": "Air"
+               "MFC_type" : "alicat_digital",
+               "address" : "A",
+               "arduino_port_num" : 2,
+               "capacity" : 100,
+               "gas" : "Nitrogen"
             }
-          ]
-        }
-      ],
-
-      "Vials": {
-        "4": {
-          "odor": "dummy",
-          "conc": 0
-        },
-        "5": {
-          "odor": "a(+)-pinene",
-          "conc": 0.01
-        },
-        "6": {
-          "odor": "amyl acetate",
-          "conc": 0.01
-        },
-        "7": {
-          "odor": "2-hydroxy acetophenone",
-          "conc": 0.01
-        },
-        "8": {
-          "odor": "ethyl tiglate",
-          "conc": 0.01
-        },
-        "9": {
-          "odor": "menthone",
-          "conc": 0.01
-        },
-        "10": {
-          "odor": "acetophenone",
-          "conc": 0.01
-        },
-        "11": {
-          "odor": "heptaldehyde",
-          "conc": 0.01
-        },
-        "12": {
-          "odor": "R(+)-limonene",
-          "conc": 0.01
-        }
+         ],
+         "Vials" : {
+            "10" : {
+               "conc" : 0.010,
+               "odor" : "acetophenone"
+            },
+            "11" : {
+               "conc" : 0.010,
+               "odor" : "heptaldehyde"
+            },
+            "12" : {
+               "conc" : 0.010,
+               "odor" : "R(+)-limonene"
+            },
+            "4" : {
+               "conc" : 0,
+               "odor" : "dummy"
+            },
+            "5" : {
+               "conc" : 0.010,
+               "odor" : "a(+)-pinene"
+            },
+            "6" : {
+               "conc" : 0.010,
+               "odor" : "amyl acetate"
+            },
+            "7" : {
+               "conc" : 0.010,
+               "odor" : "2-hydroxy acetophenone"
+            },
+            "8" : {
+               "conc" : 0.010,
+               "odor" : "ethyl tiglate"
+            },
+            "9" : {
+               "conc" : 0.010,
+               "odor" : "menthone"
+            }
+         },
+         "cassette_1_sn" : 1222,
+         "cassette_2_sn" : 1234,
+         "cleandate" : 20140101,
+         "com_port" : 7,
+         "interface" : "teensy",
+         "master_sn" : 212,
+         "slave_index" : 1
       }
-
-    }
-  ],
-  "Dilutors": []
+   ]
 }
-

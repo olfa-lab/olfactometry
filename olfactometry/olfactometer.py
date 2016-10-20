@@ -118,7 +118,7 @@ class TeensyOlfa(Olfactometer):
 
         self.all_off()
 
-    def set_stimulus(self, stimulus_dict):
+    def set_stimulus(self, stimulus_dict, open_vials=True):
         """
         Sets stimulus based on stimulus dictionary defined in self.generate_stimulus_template()
 
@@ -144,7 +144,8 @@ class TeensyOlfa(Olfactometer):
             k = 'mfc_{0}_flow'.format(i)
             flows.append(stimulus_dict[k])
         successes.append(self.set_flows(flows))
-        successes.append(self.set_odor(odor, vialconc))
+        if open_vials:
+            successes.append(self.set_odor(odor, vialconc))
         return all(successes)
 
     def set_odor(self, odor, conc=None, valvestate=None):
@@ -160,7 +161,7 @@ class TeensyOlfa(Olfactometer):
         :return: True if setting appears to be successful.
         :rtype: bool
         """
-        if isinstance(odor, str):
+        if isinstance(odor, str) and odor:
             vnum = self.vials.find_odor(odor, conc)
             return self.set_vial(vnum, valvestate)
         elif isinstance(odor, int):  # a valve was specified.
@@ -343,8 +344,9 @@ class TeensyOlfa(Olfactometer):
             assert isinstance(mfc, MFC)
             success = mfc.poll()
             if mfc.flow < 0. and self.check_flows_before_opening:
-                self.all_off()
-                raise OlfaException('MFC is reporting no flow. Cannot continue.')
+                # self.all_off()
+                # raise OlfaException('MFC is reporting no flow. Cannot continue.')
+                return False
             if not success:
                 logging.error("Olfactometer cannot poll MFC {0}".format(i))
         return

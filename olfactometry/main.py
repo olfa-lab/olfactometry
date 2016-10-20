@@ -48,7 +48,7 @@ class Olfactometers(QtGui.QMainWindow):
         self.statusBar()
         QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('CleanLooks'))
 
-    def set_stimulus(self, stimulus_dictionary):
+    def set_stimulus(self, stimulus_dictionary, open_vials=True):
         """
         This sets the stimulus for ALL olfactometers and attached devices using a single dictionary. This dictionary
         format depends on the configuration of the attached devices. Within the gui, a template can be generated for the
@@ -66,7 +66,7 @@ class Olfactometers(QtGui.QMainWindow):
             k = 'olfa_{0}'.format(i)
             o = std['olfas'][k]
             olfa = self.olfas[i]
-            success = olfa.set_stimulus(o)
+            success = olfa.set_stimulus(o, open_vials=open_vials)
             successes.append(success)
         if 'dilutors' in std.keys():
             for i in xrange(len(std['dilutors'])):
