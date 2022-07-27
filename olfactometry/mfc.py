@@ -1,16 +1,14 @@
-__author__ = 'labadmin'
-
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtWidgets
 import time
 import logging
 
 
-class DirectSerialInterface(QtGui.QWidget):  # todo: implement direct serial interface for troubleshooting MFC behavior.
+class DirectSerialInterface(QtWidgets.QWidget):  # todo: implement direct serial interface for troubleshooting MFC behavior.
     def __init__(self):
         pass
 
 
-class MFC(QtGui.QGroupBox):
+class MFC(QtWidgets.QGroupBox):
 
     def __init__(self, parent_device, mfc_config, flow_units='SCCM', setflow=-1):
         """
@@ -32,20 +30,20 @@ class MFC(QtGui.QGroupBox):
         self.gas = mfc_config['gas']
         if self.mfc_type.startswith('alicat_digital'):
             self.address = mfc_config['address']
-        if 'arduino_port_num' in mfc_config.keys():  # this is only needed for Teensy olfactometers. This is the device ID
+        if 'arduino_port_num' in list(mfc_config.keys()):  # this is only needed for Teensy olfactometers. This is the device ID
             self.arduino_port = int(mfc_config['arduino_port_num'])
 
-        mfclayout = QtGui.QGridLayout()
-        self.mfcslider = QtGui.QSlider(QtCore.Qt.Vertical)
+        mfclayout = QtWidgets.QGridLayout()
+        self.mfcslider = QtWidgets.QSlider(QtCore.Qt.Vertical)
         self.mfcslider.setMaximum(int(self.capacity))
         self.mfcslider.setStatusTip('Adjusts flow set rate.')
         self.mfcslider.setTickPosition(3)
-        self.mfctextbox = QtGui.QLineEdit()
+        self.mfctextbox = QtWidgets.QLineEdit()
         self.mfctextbox.setMaxLength(4)
         self.mfctextbox.setAlignment(QtCore.Qt.AlignCenter)
         self.mfctextbox.setPlaceholderText("Set value")
         self.mfctextbox.setStatusTip('Type to set flow rate.')
-        self.lcd = QtGui.QLCDNumber()
+        self.lcd = QtWidgets.QLCDNumber()
         self.lcd.setMinimumSize(50, 50)
         self.lcd.setDigitCount(5)  # this allows 4 digits and a decimal.
         self.lcd.setStatusTip('Current flow reading.')
@@ -134,9 +132,9 @@ class MFCAnalog(MFC):
 
         command = "MFC " + str(self.parent_device.slaveindex) + " " + str(self.arduino_port)
         rate = self.parent_device.send_command(command)
-        if (rate < 0):
-            print "Couldn't get MFC flow rate measure"
-            print "mfc index: " + str(self.arduino_port), "error code: ", rate
+        if (rate < b'\x00'):
+            print("Couldn't get MFC flow rate measure")
+            print("mfc index: " + str(self.arduino_port), "error code: ", rate)
             return None
         else:
             return float(rate)
@@ -153,7 +151,7 @@ class MFCAnalog(MFC):
         command = "MFC " + str(self.parent_device.slaveindex) + " " + str(self.arduino_port) + " " + str(flowrate * 1.0 / self.capacity)
         set = self.parent_device.send_command(command)
         if(set != "MFC set\r\n"):
-            print "Error setting MFC: ", set
+            print("Error setting MFC: ", set)
             return False
         return True
 
@@ -167,7 +165,7 @@ class MFCAlicatDigArduino(MFC):
         :return:
         """
         success = False
-        start_time = time.clock()
+        start_time = time.time()
         # print "Setting rate of: ", flowrate
         if flowrate > self.capacity or flowrate < 0:
             return success
@@ -176,13 +174,13 @@ class MFCAlicatDigArduino(MFC):
         command = "DMFC {0:d} {1:d} A{2:d}".format(self.parent_device.slaveindex, self.arduino_port, flownum)
         confirmation = self.parent_device.send_command(command)
         if(confirmation != "MFC set\r\n"):
-            print "Error setting MFC: ", confirmation
+            print("Error setting MFC: ", confirmation)
         else:
             # Attempt to read back
             success = True
             command = "DMFC {0:d} {1:d}".format(self.parent_device.slaveindex, self.arduino_port)
             returnstring = self.parent_device.send_command(command)
-            while (returnstring is None or returnstring.startswith('Error -2')) and time.clock() - start_time < .2:
+            while (returnstring is None or returnstring.startswith('Error -2')) and time.time() - start_time < .2:
                 returnstring = self.parent_device.send_command(command)
         return success
 
@@ -193,7 +191,7 @@ class MFCAlicatDigArduino(MFC):
         :param kwargs:
         :return: float flowrate normalized to max flowrate.
         """
-        start_time = time.clock()
+        start_time = time.time()
         if self.parent_device is None:
             return
 
@@ -204,14 +202,14 @@ class MFCAlicatDigArduino(MFC):
         _ = self.parent_device.send_command(command_get)
         # stick around querying the olfactometer until it gets the command.
         confirmation = self.parent_device.send_command(command)
-        while (confirmation is None or not confirmation.startswith("MFC set")) and time.clock() - start_time < .2:
+        while (confirmation is None or not confirmation.startswith(b"MFC set")) and time.time() - start_time < .2:
             confirmation = self.parent_device.send_command(command)
         # stick around querying the olfactometer until it gets the flow data from the alicat.
         returnstring = self.parent_device.send_command(command_get)
-        while (returnstring is None or returnstring.startswith("Error -2")) and time.clock() - start_time < .2:
+        while (returnstring is None or returnstring.startswith(b"Error -2")) and time.time() - start_time < .2:
             returnstring = self.parent_device.send_command(command_get)
         # once it returns a good string, parse the string and return the flow.
-        li = returnstring.split(' ')
+        li = returnstring.split(b' ')
         if len(li) > 4:
             r_str = li[4]  # 5th column is mass flow, so index 4.
             try:
@@ -250,13 +248,13 @@ class MFCAlicatDigRaw(MFC):
         return True
 
     def get_flowrate(self):
-        start_time = time.clock()
+        start_time = time.time()
         command = "{0}\r".format(self.address)
         returnstring = self.parent_device.send_command(command)
         # if no returnstring, wait for < 200 ms to get a returnstring.
-        while not returnstring and time.clock() - start_time < .2:
+        while not returnstring and time.time() - start_time < .2:
             returnstring = self.parent_device.read_line()
-        li = returnstring.split(' ')
+        li = returnstring.split(b' ')
         if len(li) > 4:
             r_str = li[4]  # 5th column is mass flow, so index 4.
             flow = float(r_str)
@@ -264,8 +262,8 @@ class MFCAlicatDigRaw(MFC):
                 flow *= 1000.
             flow = flow / self.capacity  # normalize as per analog api.
             if (flow < 0):
-                print "Couldn't get MFC flow rate measure"
-                print "mfc index: " + str(self.address), "error code: ", flow
+                print("Couldn't get MFC flow rate measure")
+                print("mfc index: " + str(self.address), "error code: ", flow)
                 return None
         else:
             flow = None

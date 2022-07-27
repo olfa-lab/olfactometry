@@ -1,16 +1,14 @@
-__author__ = 'labadmin'
-
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtWidgets
 import time
-from mfc import MFCclasses, MFC
-from dilutor import DILUTORS
+from .mfc import MFCclasses, MFC
+from .dilutor import DILUTORS
 from serial import SerialException
-from utils import OlfaException, flatten_dictionary, connect_serial
+from .utils import OlfaException, flatten_dictionary, connect_serial
 
 import logging
 
 
-class Olfactometer(QtGui.QGroupBox):
+class Olfactometer(QtWidgets.QGroupBox):
     vialChanged = QtCore.pyqtSignal(int)  # this signal should be used when a vial is set.
     # It is connected to valvegroup button setting.
 
@@ -85,6 +83,7 @@ class TeensyOlfa(Olfactometer):
         """
         super(TeensyOlfa, self).__init__()
         self.config = config_dict
+        print(config_dict)
         self.slaveindex = config_dict['slave_index']
         self.polling_interval = mfc_polling_interval
         self.setTitle('Teensy Olfa (COM:{0})'.format(config_dict['com_port']))
@@ -107,7 +106,7 @@ class TeensyOlfa(Olfactometer):
         self._poll_mfcs()
         self._mfc_timer = self._start_mfc_polling(mfc_polling_interval)
 
-        layout = QtGui.QHBoxLayout(self)
+        layout = QtWidgets.QHBoxLayout(self)
         for mfc in self.mfcs:
             layout.addWidget(mfc)
         layout.addWidget(self.vials)
@@ -134,13 +133,13 @@ class TeensyOlfa(Olfactometer):
             vialconc = stimulus_dict['vialconc']
         except KeyError:
             vialconc = None
-        for i in xrange(len(dilspecs)):
+        for i in range(len(dilspecs)):
             dilutor = self.dilutors[i]
             k = 'dilutor_{0}'.format(i)
             success = dilutor.set_stimulus(dilspecs[k])
             successes.append(success)
         flows = []
-        for i in xrange(2):
+        for i in range(2):
             k = 'mfc_{0}_flow'.format(i)
             flows.append(stimulus_dict[k])
         successes.append(self.set_flows(flows))
@@ -300,9 +299,9 @@ class TeensyOlfa(Olfactometer):
 
     def send_command(self, command, tries=1):
         self.serial.flushInput()
-        for i in xrange(tries):
+        for i in range(tries):
             # logging.debug("Sending command: {0}".format(command))
-            self.serial.write("{0}\r".format(command))
+            self.serial.write(bytes("{0}\r".format(command), 'utf8'))
             line = self.read_line()
             line = self.read_line()
             morebytes = self.serial.inWaiting()
@@ -339,7 +338,7 @@ class TeensyOlfa(Olfactometer):
 
     @QtCore.pyqtSlot()
     def _poll_mfcs(self):
-        for i in xrange(len(self.mfcs)):
+        for i in range(len(self.mfcs)):
             mfc = self.mfcs[i]
             assert isinstance(mfc, MFC)
             success = mfc.poll()
@@ -461,12 +460,12 @@ class TeensyOlfa(Olfactometer):
 
     def _config_dummy(self, valve_config):
         dummys = []
-        for k, v in valve_config.iteritems():
+        for k, v in valve_config.items():
             if v.get('odor', '').lower() == 'dummy':
                 dummy = int(k)
                 dummys.append(dummy)
         if len(dummys) > 1:
-            print dummys
+            print(dummys)
             raise OlfaException("Configuration file must specify one dummy vial.")
         elif len(dummys) < 1:
             dummy = 4
@@ -481,11 +480,11 @@ class TeensyOlfa(Olfactometer):
         stim_template_dict = {'odor': 'str (odorname) or int (vialnumber).',
                               'vialconc': 'float concentration of odor to be presented (optional if using vialnumber)'}
         dilutor_dict = dict()
-        for i in xrange(len(self.mfcs)):
+        for i in range(len(self.mfcs)):
             k = 'mfc_{0}_flow'.format(i)
             stim_template_dict[k] = 'numeric flowrate'
 
-        for i in xrange(len(self.dilutors)):
+        for i in range(len(self.dilutors)):
             dilutor = self.dilutors[i]
             k = 'dilutor_{0}'.format(i)
             dilutor_dict[k] = dilutor.generate_stimulus_template_string()
@@ -496,12 +495,12 @@ class TeensyOlfa(Olfactometer):
         import tables
         stim_template_dict = {'odor': tables.StringCol(32),
                               'vialconc': tables.Float64Col()}
-        for i in xrange(len(self.mfcs)):
+        for i in range(len(self.mfcs)):
             k = 'mfc_{0}_flow'.format(i)
             stim_template_dict[k] = tables.Float64Col()
         if self.dilutors:
             stim_template_dict['dilutors'] = dict()
-            for i in xrange(len(self.dilutors)):
+            for i in range(len(self.dilutors)):
                 k = 'dilutor_{0}'.format(i)
                 dilutor = self.dilutors[i]
                 stim_template_dict['dilutors'][k] = dilutor.generate_tables_definition()
@@ -509,7 +508,7 @@ class TeensyOlfa(Olfactometer):
 
 
 
-class VialGroup(QtGui.QWidget):
+class VialGroup(QtWidgets.QWidget):
     """
     GUI element for vials. This contains a bunch of buttons based on the configuration file that will open specific
     vials. It also holds the identity of the vials (ie odor and concentration).
@@ -527,19 +526,19 @@ class VialGroup(QtGui.QWidget):
         super(VialGroup, self).__init__()
 
         self.parent_device = parent_olfa
-        self.valve_numbers = [int(s) for s in valve_config.keys()]
+        self.valve_numbers = [int(s) for s in list(valve_config.keys())]
         self.valve_config = valve_config
         self.valve_numbers.sort()
-        self.valves = QtGui.QButtonGroup(self)
-        self.vgroupbox = QtGui.QGroupBox("Odor Vials", self)
-        buttonlayout = QtGui.QHBoxLayout(self)
+        self.valves = QtWidgets.QButtonGroup(self)
+        self.vgroupbox = QtWidgets.QGroupBox("Odor Vials", self)
+        buttonlayout = QtWidgets.QHBoxLayout(self)
         self.vgroupbox.setLayout(buttonlayout)
         self.parent_device.vialChanged.connect(self.changeButton)
         self._checked = 0  # last checked button. updated by changeButton slot.
         dummyvial = 4  # this is default for the teensy olfa.
         for valnum in self.valve_numbers:
             val = valve_config[str(valnum)]
-            button = QtGui.QPushButton(str(valnum))
+            button = QtWidgets.QPushButton(str(valnum))
             button.setMaximumWidth(30)
             button.setCheckable(True)
             try:
@@ -556,7 +555,7 @@ class VialGroup(QtGui.QWidget):
         self.valves.buttonClicked[int].connect(self._button_clicked)
         self.resize(self.vgroupbox.sizeHint())
         self.setMinimumSize(self.size())
-        self.setSizePolicy(QtGui.QSizePolicy.MinimumExpanding, QtGui.QSizePolicy.MinimumExpanding)
+        self.setSizePolicy(QtWidgets.QSizePolicy.MinimumExpanding, QtWidgets.QSizePolicy.MinimumExpanding)
         return
 
 
@@ -598,8 +597,8 @@ class VialGroup(QtGui.QWidget):
         :rtype: int
         """
         odor_matches = []
-        for k, v in self.valve_config.iteritems():
-            if 'odor' in v.keys() and odor.lower() == v['odor'].lower():
+        for k, v in self.valve_config.items():
+            if 'odor' in list(v.keys()) and odor.lower() == v['odor'].lower():
                 odor_matches.append(k)
 
         odor_conc_matches = []
@@ -613,16 +612,16 @@ class VialGroup(QtGui.QWidget):
             odor_conc_matches = odor_matches
 
         if not odor_conc_matches:
-            print self.valve_config
+            print(self.valve_config)
             raise OlfaException('Cannot find specified odor/concentration in vialset (odor: {0}, conc: {1}).'.format(odor, conc))
         elif len(odor_conc_matches) > 1:
-            print self.valve_config
+            print(self.valve_config)
             raise OlfaException('Multiple matches for odor/concentration found in vialset (odor: {0}, conc: {1}).'.format(odor, conc))
         else:
             return int(odor_conc_matches[0])
 
 def main():
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
     conf = get_olfa_config()
     olf_conf = conf['olfas'][0]
     w = TeensyOlfa(None, olf_conf)
@@ -631,7 +630,7 @@ def main():
 
 if __name__ == "__main__":
     import sys
-    from utils import get_olfa_config
+    from .utils import get_olfa_config
     LOGGING_LEVEL = logging.DEBUG
     logger = logging.getLogger()
     handler = logging.StreamHandler()

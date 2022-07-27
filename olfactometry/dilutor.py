@@ -1,13 +1,11 @@
-__author__ = 'chris'
-
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtWidgets
 from serial import SerialException
-from mfc import MFCclasses, MFC
+from .mfc import MFCclasses, MFC
 import logging
-from utils import OlfaException, connect_serial
+from .utils import OlfaException, connect_serial
 
 
-class Dilutor(QtGui.QGroupBox):
+class Dilutor(QtWidgets.QGroupBox):
     """
     Dillutor v1 by CW.
     """
@@ -21,7 +19,7 @@ class Dilutor(QtGui.QGroupBox):
         self.serial = connect_serial(com_port, baudrate=baudrate, timeout=1, writeTimeout=1)
         self._eol = '\r'
 
-        layout = QtGui.QHBoxLayout()
+        layout = QtWidgets.QHBoxLayout()
         self.mfcs = self._config_mfcs(config['MFCs'])
         self.polling_interval = polling_interval
         self.mfc_timer = self.start_mfc_polling()
@@ -55,7 +53,7 @@ class Dilutor(QtGui.QGroupBox):
 
     @QtCore.pyqtSlot()
     def poll_mfcs(self):
-        for i in xrange(len(self.mfcs)):
+        for i in range(len(self.mfcs)):
             mfc = self.mfcs[i]
             assert isinstance(mfc, MFC)
             mfc.poll()
@@ -74,8 +72,8 @@ class Dilutor(QtGui.QGroupBox):
     def send_command(self, command, tries=1):
         # must send with '\r' end of line
         self.serial.flushInput()
-        for i in xrange(tries):
-            self.serial.write(command)
+        for i in range(tries):
+            self.serial.write(bytes(command, 'utf-8'))
             line = self.read_line()
         return line
 
@@ -106,7 +104,7 @@ class Dilutor(QtGui.QGroupBox):
             # line = self.serial.readline()
         except SerialException as e:
             print('pySerial exception: Exception that is raised on write timeouts')
-            print e
+            print(e)
         return line
 
     def close_serial(self):

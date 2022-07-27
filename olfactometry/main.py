@@ -1,15 +1,14 @@
-__author__ = 'chris'
-
-from PyQt4 import QtCore, QtGui
-from utils import get_olfa_config, OlfaException, flatten_dictionary
-from olfactometer import TeensyOlfa, Olfactometer
-from dilutor import DILUTORS
+from PyQt5 import QtCore, QtGui, QtWidgets
+from .utils import get_olfa_config, OlfaException, flatten_dictionary
+from .olfactometer import TeensyOlfa, Olfactometer
+from .dilutor import DILUTORS, Dilutor
 from pprint import pformat
 import logging
 import os
+import sys
 
 
-class Olfactometers(QtGui.QMainWindow):
+class Olfactometers(QtWidgets.QMainWindow):
     """
     Mainwindow and container for olfactometer objects.
 
@@ -37,16 +36,16 @@ class Olfactometers(QtGui.QMainWindow):
         except (TypeError, KeyError):  # no global Dilutors are specified, which is OK!
             self.dilutors = []
         self.setWindowTitle("Olfactometry")
-        layout = QtGui.QVBoxLayout()
+        layout = QtWidgets.QVBoxLayout()
         for olfa in self.olfas:
             layout.addWidget(olfa)
         for dilutor in self.dilutors:
             layout.addWidget(dilutor)
-        central_widget = QtGui.QWidget()
+        central_widget = QtWidgets.QWidget()
         self.setCentralWidget(central_widget)
         central_widget.setLayout(layout)
         self.statusBar()
-        QtGui.QApplication.setStyle(QtGui.QStyleFactory.create('CleanLooks'))
+        QtWidgets.QApplication.setStyle(QtWidgets.QStyleFactory.create('CleanLooks'))
 
     def set_stimulus(self, stimulus_dictionary, open_vials=True):
         """
@@ -62,14 +61,14 @@ class Olfactometers(QtGui.QMainWindow):
         std = stimulus_dictionary
         n_olfas = len(std['olfas'])
         successes = []
-        for i in xrange(n_olfas):
+        for i in range(n_olfas):
             k = 'olfa_{0}'.format(i)
             o = std['olfas'][k]
             olfa = self.olfas[i]
             success = olfa.set_stimulus(o, open_vials=open_vials)
             successes.append(success)
-        if 'dilutors' in std.keys():
-            for i in xrange(len(std['dilutors'])):
+        if 'dilutors' in list(std.keys()):
+            for i in range(len(std['dilutors'])):
                 dil = self.dilutors[i]
                 k = 'dilutor_{0}'.format(i)
                 d = std['dilutors'][k]
@@ -204,37 +203,37 @@ class Olfactometers(QtGui.QMainWindow):
         return all(successes)
 
     def _buildmenubar(self, bar):
-        assert isinstance(bar, QtGui.QMenuBar)
+        assert isinstance(bar, QtWidgets.QMenuBar)
         filemenu = bar.addMenu('&File')
         toolsmenu = bar.addMenu('&Tools')
 
-        reloadAction = QtGui.QAction('&Reload configuration', self)
+        reloadAction = QtWidgets.QAction('&Reload configuration', self)
         reloadAction.setStatusTip('Destroys current olfactometers and reloads with JSON at {0}'.format(self.config_fn))
         reloadAction.triggered.connect(self._reload_config)
         filemenu.addAction(reloadAction)
 
-        openConfigAction = QtGui.QAction("Open &configuration", self)
+        openConfigAction = QtWidgets.QAction("Open &configuration", self)
         openConfigAction.triggered.connect(self._open_config)
         openConfigAction.setStatusTip("Opens config file: {0} in system text editor.".format(self.config_fn))
         toolsmenu.addAction(openConfigAction)
 
-        stimTemplateAction = QtGui.QAction('Stimulus template...', self)
+        stimTemplateAction = QtWidgets.QAction('Stimulus template...', self)
         stimTemplateAction.setStatusTip('Displays a stimulus dictionary template based on current configuration.')
         stimTemplateAction.triggered.connect(self._stim_template_display)
         toolsmenu.addAction(stimTemplateAction)
 
-        calibrationAction = QtGui.QAction('Open calibration...', self)
+        calibrationAction = QtWidgets.QAction('Open calibration...', self)
         calibrationAction.setStatusTip('Opens calibration widget.')
         calibrationAction.triggered.connect(self._start_calibration)
         filemenu.addAction(calibrationAction)
 
-        exitAction = QtGui.QAction("&Quit", self)
+        exitAction = QtWidgets.QAction("&Quit", self)
         exitAction.setShortcut("Ctrl+Q")
         exitAction.setStatusTip("Quit program.")
-        exitAction.triggered.connect(QtGui.qApp.quit)
+        exitAction.triggered.connect(sys.exit)
         filemenu.addAction(exitAction)
 
-        self.check_flows_before_opening_action = QtGui.QAction("Flow checking", self)
+        self.check_flows_before_opening_action = QtWidgets.QAction("Flow checking", self)
         self.check_flows_before_opening_action.setStatusTip('Enable or disable flow check prior to opening valves.')
         self.check_flows_before_opening_action.setCheckable(True)
         self.check_flows_before_opening_action.setChecked(True)
@@ -247,7 +246,7 @@ class Olfactometers(QtGui.QMainWindow):
         :return:
         """
         olfas = list()
-        for i in xrange(len(olfa_specs)):
+        for i in range(len(olfa_specs)):
             o = olfa_specs[i]
             try:
                 olfatype = o['olfa_interface']
@@ -268,7 +267,7 @@ class Olfactometers(QtGui.QMainWindow):
         :return:
         """
         dilutors = []
-        for i in xrange(len(dilutor_config)):
+        for i in range(len(dilutor_config)):
             v = dilutor_config[i]
             dilutor_type = v['dilutor_type']
             logging.debug('Configuring {0} dilutor.'.format(dilutor_type))
@@ -283,7 +282,7 @@ class Olfactometers(QtGui.QMainWindow):
             _, config_obj = get_olfa_config(self.config_fn)
             self.olfa_specs = config_obj['Olfactometers']
         except ValueError as e:
-            errorbox = QtGui.QErrorMessage(self)
+            errorbox = QtWidgets.QErrorMessage(self)
             errorbox.showMessage('Error, JSON is not valid: {0}'.format(e.message))
             return
         logging.info('Reloading config from {0}'.format(self.config_fn))
@@ -301,17 +300,17 @@ class Olfactometers(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def _stim_template_display(self):
         template_string = self.generate_stimulus_template()
-        print template_string
-        d = QtGui.QWidget()
+        print(template_string)
+        d = QtWidgets.QWidget()
         d.setWindowTitle('Stimulus template')
-        l = QtGui.QVBoxLayout(d)
-        desc_box = QtGui.QLabel()
+        l = QtWidgets.QVBoxLayout(d)
+        desc_box = QtWidgets.QLabel()
         desc_box.setText('The text below is a template for a stimulus dictionary for this configuration.\n\nPassing this '
                          'dictionary to the Olfactometers.set_stimulus function will set the stimulus for all '
                          'olfactometers and dilutors in the configuration.')
         desc_box.setWordWrap(True)
         l.addWidget(desc_box)
-        text_box = QtGui.QPlainTextEdit()
+        text_box = QtWidgets.QPlainTextEdit()
         text_box.setReadOnly(True)
         # text_box.setPlainText(template_string)
         text_box.setPlainText(template_string)
@@ -327,13 +326,13 @@ class Olfactometers(QtGui.QMainWindow):
         olfa_templates = {}
         dilutor_templates = {}
 
-        for i in xrange(len(self.olfas)):
+        for i in range(len(self.olfas)):
             olfa = self.olfas[i]
             k = 'olfa_{0}'.format(i)
             olfa_templates[k] = olfa.generate_stimulus_template_string()
         stimulus_template['olfas'] = olfa_templates
         if self.dilutors:
-            for i in xrange(len(self.dilutors)):
+            for i in range(len(self.dilutors)):
                 dil = self.dilutors[i]
                 k = 'dilutor_{0}'.format(i)
                 dilutor_templates[k] = dil.generate_stimulus_templates()
@@ -363,8 +362,8 @@ class Olfactometers(QtGui.QMainWindow):
         return
 
     def _start_calibration(self):
-        import calibration  # only import if required, because we have some other imports that will waste memory.
-        self.cal_view = calibration.CalibrationViewer()
+        from .calibration import CalibrationViewer  # only import if required, because we have some other imports that will waste memory.
+        self.cal_view = CalibrationViewer()
         self.cal_view.show()
 
     def __getitem__(self, olfa_idx):
@@ -391,8 +390,7 @@ class Olfactometers(QtGui.QMainWindow):
 
 
 def main(config_path=''):
-    import sys
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
     w = Olfactometers(None, config_path)
     w.show()
 

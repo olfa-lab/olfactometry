@@ -1,10 +1,10 @@
-from __future__ import division
 import numpy as np
 import scipy.stats as stats
 import tables as tb
-from PyQt4 import QtCore, QtGui
+from PyQt5 import QtCore, QtGui, QtWidgets
 import logging
 import os
+import sys
 from matplotlib.backends.backend_qt4agg import FigureCanvas
 from matplotlib.figure import Figure
 try:
@@ -15,13 +15,12 @@ except ImportError:
     def jit(a):
         return a
 
-__author__ = 'chris'
 
 LIST_ITEM_ENABLE_FLAG = QtCore.Qt.ItemFlag(QtCore.Qt.ItemIsSelectable + QtCore.Qt.ItemIsEnabled +
                                            QtCore.Qt.ItemIsDragEnabled + QtCore.Qt.ItemIsUserCheckable)  # 57
 
 
-class CalibrationViewer(QtGui.QMainWindow):
+class CalibrationViewer(QtWidgets.QMainWindow):
     trialsChanged = QtCore.pyqtSignal()
 
     def __init__(self):
@@ -32,87 +31,87 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.trial_selected_list = []
         self.trialsChanged.connect(self._trial_selection_changed)
 
-        mainwidget = QtGui.QWidget(self)
+        mainwidget = QtWidgets.QWidget(self)
         self.setCentralWidget(mainwidget)
-        layout = QtGui.QGridLayout(mainwidget)
+        layout = QtWidgets.QGridLayout(mainwidget)
         mainwidget.setLayout(layout)
 
         menu = self.menuBar()
         filemenu = menu.addMenu("&File")
         toolsmenu = menu.addMenu("&Tools")
 
-        openAction = QtGui.QAction("&Open recording...", self)
+        openAction = QtWidgets.QAction("&Open recording...", self)
         openAction.triggered.connect(self._openAction_triggered)
         openAction.setStatusTip("Open a HDF5 data file with calibration recording.")
         openAction.setShortcut("Ctrl+O")
         filemenu.addAction(openAction)
-        saveFigsAction = QtGui.QAction('&Save figures...', self)
+        saveFigsAction = QtWidgets.QAction('&Save figures...', self)
         saveFigsAction.triggered.connect(self._saveFiguresAction_triggered)
         saveFigsAction.setShortcut('Ctrl+S')
         openAction.setStatusTip("Saves current figures.")
         filemenu.addAction(saveFigsAction)
-        exitAction = QtGui.QAction("&Quit", self)
+        exitAction = QtWidgets.QAction("&Quit", self)
         exitAction.setShortcut("Ctrl+Q")
         exitAction.setStatusTip("Quit program.")
-        exitAction.triggered.connect(QtGui.qApp.quit)
+        exitAction.triggered.connect(sys.exit)
         filemenu.addAction(exitAction)
-        removeTrialAction = QtGui.QAction("&Remove trials", self)
+        removeTrialAction = QtWidgets.QAction("&Remove trials", self)
         removeTrialAction.setStatusTip('Permanently removes selected trials (bad trials) from trial list.')
         removeTrialAction.triggered.connect(self._remove_trials)
         removeTrialAction.setShortcut('Ctrl+R')
         toolsmenu.addAction(removeTrialAction)
 
-        trial_group_list_box = QtGui.QGroupBox()
+        trial_group_list_box = QtWidgets.QGroupBox()
         trial_group_list_box.setTitle('Trial Groups')
         self.trial_group_list = TrialGroupListWidget()
-        trial_group_layout = QtGui.QVBoxLayout()
+        trial_group_layout = QtWidgets.QVBoxLayout()
         trial_group_list_box.setLayout(trial_group_layout)
         trial_group_layout.addWidget(self.trial_group_list)
         layout.addWidget(trial_group_list_box, 0, 0)
         self.trial_group_list.itemSelectionChanged.connect(self._trial_group_selection_changed)
 
-        trial_select_list_box = QtGui.QGroupBox()
+        trial_select_list_box = QtWidgets.QGroupBox()
         trial_select_list_box.setMouseTracking(True)
-        trial_select_list_layout = QtGui.QVBoxLayout()
+        trial_select_list_layout = QtWidgets.QVBoxLayout()
         trial_select_list_box.setLayout(trial_select_list_layout)
         trial_select_list_box.setTitle('Trials')
         self.trial_select_list = TrialListWidget()
         self.trial_select_list.setMouseTracking(True)
         trial_select_list_layout.addWidget(self.trial_select_list)
-        self.trial_select_list.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        self.trial_select_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.trial_select_list.itemSelectionChanged.connect(self._trial_selection_changed)
         layout.addWidget(trial_select_list_box, 0, 1)
         self.trial_select_list.createGroupSig.connect(self.trial_group_list.create_group)
 
-        filters_box = QtGui.QGroupBox("Trial filters.")
-        filters_box_layout = QtGui.QVBoxLayout(filters_box)
-        filters_scroll_area = QtGui.QScrollArea()
-        filters_buttons = QtGui.QHBoxLayout()
-        filters_all = QtGui.QPushButton('Select all', self)
+        filters_box = QtWidgets.QGroupBox("Trial filters.")
+        filters_box_layout = QtWidgets.QVBoxLayout(filters_box)
+        filters_scroll_area = QtWidgets.QScrollArea()
+        filters_buttons = QtWidgets.QHBoxLayout()
+        filters_all = QtWidgets.QPushButton('Select all', self)
         filters_all.clicked.connect(self._select_all_filters)
-        filters_none = QtGui.QPushButton('Select none', self)
+        filters_none = QtWidgets.QPushButton('Select none', self)
         filters_none.clicked.connect(self._select_none_filters)
         filters_buttons.addWidget(filters_all)
         filters_buttons.addWidget(filters_none)
         filters_box_layout.addLayout(filters_buttons)
         filters_box_layout.addWidget(filters_scroll_area)
-        filters_wid = QtGui.QWidget()
+        filters_wid = QtWidgets.QWidget()
         filters_scroll_area.setWidget(filters_wid)
         filters_scroll_area.setWidgetResizable(True)
         filters_scroll_area.setFixedWidth(300)
-        self.filters_layout = QtGui.QVBoxLayout()
+        self.filters_layout = QtWidgets.QVBoxLayout()
         filters_wid.setLayout(self.filters_layout)
         layout.addWidget(filters_box, 0, 2)
 
-        plots_box = QtGui.QGroupBox()
+        plots_box = QtWidgets.QGroupBox()
         plots_box.setTitle('Plots')
-        plots_layout = QtGui.QHBoxLayout()
+        plots_layout = QtWidgets.QHBoxLayout()
 
         self.figure = Figure((9, 5))
         self.figure.patch.set_facecolor('None')
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setParent(plots_box)
-        self.canvas.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.canvas.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         plots_layout.addWidget(self.canvas)
         plots_box.setLayout(plots_layout)
         layout.addWidget(plots_box, 0, 3)
@@ -125,7 +124,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.ax_mean_plots.set_title('Mean value')
         self.ax_mean_plots.set_ylabel('value')
         self.ax_mean_plots.set_xlabel('Concentration')
-        self.ax_mean_plots.autoscale(enable=True, axis=u'both', tight=False)
+        self.ax_mean_plots.autoscale(enable=True, axis='both', tight=False)
         self.figure.tight_layout()
 
     @QtCore.pyqtSlot()
@@ -139,7 +138,7 @@ class CalibrationViewer(QtGui.QMainWindow):
             mask *= v.trial_mask
         self.trial_mask = mask
         self.trial_select_list.itemSelectionChanged.disconnect(self._trial_selection_changed)
-        for i in xrange(len(self.trial_mask)):
+        for i in range(len(self.trial_mask)):
             hide = not self.trial_mask[i]
             it = self.trial_select_list.item(i)
             it.setHidden(hide)
@@ -150,7 +149,7 @@ class CalibrationViewer(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def _openAction_triggered(self):
-        filedialog = QtGui.QFileDialog(self)
+        filedialog = QtWidgets.QFileDialog(self)
         if os.path.exists('D:\\experiment\\raw_data'):
             startpath = 'D:\\experiment\\raw_data\\mouse_o_cal_cw\\sess_001'
         else:
@@ -165,7 +164,7 @@ class CalibrationViewer(QtGui.QMainWindow):
             trials = self.data.trials
             for i, t in enumerate(trials):
                 tstr = "Trial {0}".format(i)
-                it = QtGui.QListWidgetItem(tstr, self.trial_select_list)
+                it = QtWidgets.QListWidgetItem(tstr, self.trial_select_list)
                 # trial = trials[i]
                 # odor = trial['odor']
                 # vialconc = trial['vialconc']
@@ -191,7 +190,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         self.filters = list()
         colnames = trials.dtype.names
         if 'odorconc' not in colnames:
-            self.error = QtGui.QErrorMessage()
+            self.error = QtWidgets.QErrorMessage()
             self.error.showMessage('Data file must have "odorconc" field to allow plotting.')
         start_strings = ('odorconc', 'olfas', 'dilutors')
         filter_fields = []
@@ -205,13 +204,13 @@ class CalibrationViewer(QtGui.QMainWindow):
             filter.populate_list(self.data.trials)
             filter.setVisible(False)
             self.filters.append(filter)
-            box = QtGui.QWidget()
+            box = QtWidgets.QWidget()
             box.setSizePolicy(0, 0)
             # box.setTitle(filter.fieldname)
-            show_button = QtGui.QPushButton(filter.fieldname)
+            show_button = QtWidgets.QPushButton(filter.fieldname)
             show_button.setStyleSheet('text-align:left; border:0px')
             show_button.clicked.connect(filter.toggle_visible)
-            _filt_layout = QtGui.QVBoxLayout(box)
+            _filt_layout = QtWidgets.QVBoxLayout(box)
             _filt_layout.addWidget(show_button)
             _filt_layout.addWidget(filter)
             _filt_layout.setSpacing(0)
@@ -220,7 +219,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         for v in self.filters:
             assert isinstance(v, FiltersListWidget)
 
-        # self.filters_layout.addWidget(QtGui.QSpacerItem())
+        # self.filters_layout.addWidget(QtWidgets.QSpacerItem())
         self.filters_layout.addStretch()
         self.filters_layout.setSpacing(0)
 
@@ -229,7 +228,7 @@ class CalibrationViewer(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def _saveFiguresAction_triggered(self):
         # TODO: add figure saving functionality with filedialog.getSaveFileName.
-        self.saveDialog = QtGui.QFileDialog()
+        self.saveDialog = QtWidgets.QFileDialog()
         saveloc = self.saveDialog.getSaveFileName(self, 'Save figure', '', 'PDF (*.pdf);;JPEG (*.jpg);;TIFF (*.tif)')
         saveloc = str(saveloc)
         self.figure.savefig(saveloc)
@@ -249,7 +248,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         ii = 0
         remove_trialnums = []
         new_trials_mask = np.zeros_like(new_trials_array, dtype=bool)
-        for i in xrange(len(self.trial_select_list.trial_num_list)):
+        for i in range(len(self.trial_select_list.trial_num_list)):
             if i not in remove_idxes:
                 new_trials_mask[ii] = self.trial_mask[i]
                 new_trials_array[ii] = self.trial_select_list.trial_num_list[i]
@@ -273,7 +272,7 @@ class CalibrationViewer(QtGui.QMainWindow):
             selected_trial_nums.append(trialnum)
         self.update_plots(selected_trial_nums)
         self.trial_group_list.blockSignals(True)
-        for i, g in zip(xrange(self.trial_group_list.count()), self.trial_group_list.trial_groups):
+        for i, g in zip(range(self.trial_group_list.count()), self.trial_group_list.trial_groups):
             it = self.trial_group_list.item(i)
             all_in = True
             group_trials = g['trial_nums']
@@ -345,11 +344,11 @@ class CalibrationViewer(QtGui.QMainWindow):
         for i in trial_streams:
             minlen = min(len(i), minlen)
         streams_array = np.empty((ntrials, minlen))
-        for i in xrange(ntrials):
+        for i in range(ntrials):
             streams_array[i, :] = trial_streams[i][:minlen]
         for g in all_groups:
             mask = np.empty(ntrials, dtype=bool)
-            for i in xrange(ntrials):
+            for i in range(ntrials):
                 groups = groups_by_trial[i]
                 mask[i] = g in groups
             c = concs[mask]
@@ -387,7 +386,7 @@ class CalibrationViewer(QtGui.QMainWindow):
         self._filters_changed()
 
 
-class TrialListWidget(QtGui.QListWidget):
+class TrialListWidget(QtWidgets.QListWidget):
 
     createGroupSig = QtCore.pyqtSignal(list)
 
@@ -399,8 +398,8 @@ class TrialListWidget(QtGui.QListWidget):
         if event.button() == QtCore.Qt.LeftButton:
             super(TrialListWidget, self).mousePressEvent(event)
         elif event.button() == QtCore.Qt.RightButton:
-            popMenu = QtGui.QMenu()
-            createGroupAction = QtGui.QAction('Create grouping', self)
+            popMenu = QtWidgets.QMenu()
+            createGroupAction = QtWidgets.QAction('Create grouping', self)
             createGroupAction.setStatusTip("Creates a trial group from the selected trials.")
             createGroupAction.triggered.connect(self._create_group)
             popMenu.addAction(createGroupAction)
@@ -415,14 +414,14 @@ class TrialListWidget(QtGui.QListWidget):
         self.createGroupSig.emit(selected_trial_nums)
 
 
-class TrialGroupListWidget(QtGui.QListWidget):
+class TrialGroupListWidget(QtWidgets.QListWidget):
 
     def __init__(self):
 
         super(TrialGroupListWidget, self).__init__()
-        self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.trial_groups = []
-        self.name_widget = QtGui.QInputDialog()
+        self.name_widget = QtWidgets.QInputDialog()
         # self.itemPressed.connect(self._mouse_pressed)
 
 
@@ -435,17 +434,17 @@ class TrialGroupListWidget(QtGui.QListWidget):
         elif button == QtCore.Qt.RightButton:
             pos = event.pos()
             self.click_position = pos
-            popMenu = QtGui.QMenu()
-            delGroupAction = QtGui.QAction('Remove groups', self)
+            popMenu = QtWidgets.QMenu()
+            delGroupAction = QtWidgets.QAction('Remove groups', self)
             delGroupAction.triggered.connect(self._remove_groups)
             delGroupAction.setStatusTip('Removes selected groupings.')
             popMenu.addAction(delGroupAction)
-            changeColorAction = QtGui.QAction('Change color...', self)
+            changeColorAction = QtWidgets.QAction('Change color...', self)
             changeColorAction.triggered.connect(self._color_selection_triggered)
             changeColorAction.setStatusTip('Open color selection dialog to set group color.')
             popMenu.addAction(changeColorAction)
             if self.itemAt(pos):
-                changeNameAction = QtGui.QAction('Change group name...', self)
+                changeNameAction = QtWidgets.QAction('Change group name...', self)
                 popMenu.addAction(changeNameAction)
                 changeNameAction.triggered.connect(self._change_group_name)
             popMenu.exec_(event.globalPos())
@@ -467,7 +466,7 @@ class TrialGroupListWidget(QtGui.QListWidget):
     def get_trial_groups(self, trialnum):
         groups = []
         trial_groups = self.trial_groups
-        for i in xrange(self.count()):
+        for i in range(self.count()):
             g = trial_groups[i]
             if trialnum in g['trial_nums']:
                 groups.append(i)
@@ -487,7 +486,7 @@ class TrialGroupListWidget(QtGui.QListWidget):
         while i in existing_group_numbers:
             i += 1
         new_group_name = 'Group {0}'.format(i)
-        it = QtGui.QListWidgetItem(new_group_name)
+        it = QtWidgets.QListWidgetItem(new_group_name)
         it.setSelected(True)
         self.addItem(it)
         group_dict = {'name': new_group_name,
@@ -511,7 +510,7 @@ class TrialGroupListWidget(QtGui.QListWidget):
         return
 
     def _color_selection_triggered(self):
-        self.colorpicker = QtGui.QColorDialog()
+        self.colorpicker = QtWidgets.QColorDialog()
         self.colorpicker.colorSelected.connect(self._change_group_color)
         self.colorpicker.show()
         return
@@ -537,8 +536,8 @@ class TrialGroupListWidget(QtGui.QListWidget):
     @QtCore.pyqtSlot()
     def _change_group_name(self):
         item = self.itemAt(self.click_position)
-        assert isinstance(item, QtGui.QListWidgetItem)
-        self.change_name_dialog = QtGui.QInputDialog()
+        assert isinstance(item, QtWidgets.QListWidgetItem)
+        self.change_name_dialog = QtWidgets.QInputDialog()
         name, ok = self.change_name_dialog.getText(self, 'Change group name', 'Enter a new group name:')
         if name and ok:
             item.setText(name)
@@ -553,7 +552,7 @@ class TrialGroupListWidget(QtGui.QListWidget):
         return
 
 
-class FiltersListWidget(QtGui.QListWidget):
+class FiltersListWidget(QtWidgets.QListWidget):
 
     filterChanged = QtCore.pyqtSignal()
 
@@ -566,7 +565,7 @@ class FiltersListWidget(QtGui.QListWidget):
         """
         super(FiltersListWidget, self).__init__()
         self.setSpacing(0)
-        self.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
+        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
         self.fieldname = fieldname
         self.list_values = np.array([])
         self.trial_values = np.array([])
@@ -583,7 +582,7 @@ class FiltersListWidget(QtGui.QListWidget):
         self.list_values = np.unique(trial_vals)  # values as they correspond to the list.
         self.trial_mask = np.ones(len(trial_vals), dtype=bool)
         for val in self.list_values:
-            it = QtGui.QListWidgetItem(str(val), self)
+            it = QtWidgets.QListWidgetItem(str(val), self)
             it.setSelected(True)
         self.itemSelectionChanged.connect(self._selection_changed)
         self.setMaximumHeight(self.sizeHintForRow(0) * (max(len(self.list_values), 1) + .75))
@@ -593,7 +592,7 @@ class FiltersListWidget(QtGui.QListWidget):
     def toggle_visible(self):
         self.setVisible(not self.isVisible())
         if not self.isVisible():
-            for i in xrange(self.count()):
+            for i in range(self.count()):
                 field = self.item(i)
                 field.setSelected(True)
 
@@ -601,8 +600,8 @@ class FiltersListWidget(QtGui.QListWidget):
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.RightButton:
             selected = self.selectedIndexes()
-            popMenu = QtGui.QMenu()
-            combineAction = QtGui.QAction('Combine groups', self)
+            popMenu = QtWidgets.QMenu()
+            combineAction = QtWidgets.QAction('Combine groups', self)
             combineAction.triggered.connect(self._combine)
             popMenu.addAction(combineAction)
             if len(selected) > 1:
@@ -655,7 +654,7 @@ class FiltersListWidget(QtGui.QListWidget):
     def remove_trials(self, removeidx_list):
         new_trial_val_list = []
         new_trial_mask_list = []
-        for i in xrange(len(self.trial_values)):
+        for i in range(len(self.trial_values)):
             if i not in removeidx_list:
                 val = self.trial_values[i]
                 new_trial_val_list.append(val)
@@ -835,7 +834,7 @@ class CalibrationFile(object):
 
         events = {}
         streams = {}
-        for k, event_node in self.events.iteritems():
+        for k, event_node in self.events.items():
             try:
                 ev = event_node.read()
             except AttributeError:
@@ -854,7 +853,7 @@ class CalibrationFile(object):
                     events[k] = ev[ev_l]
                 else:
                     events[k] = np.array([], dtype=ev.dtype)
-        for k, stream_node in self.streams.iteritems():
+        for k, stream_node in self.streams.items():
             if read_streams:
                 streams[k] = np.copy(stream_node[start_time:end_time])  # reads these values from the stream node into memory.
             elif not read_streams:
@@ -920,7 +919,7 @@ def remove_stream_trend(stream, slice_indeces, x=None):
     if not x:
         x = np.linspace(0, len(stream_slice)-1, len(stream_slice))
     a, b, _, _, _ = stats.linregress(x, stream_slice)
-    for i in xrange(len(stream)):
+    for i in range(len(stream)):
         stream[i] -= i * a
     return stream
 
@@ -967,8 +966,7 @@ class BehaviorTrial(BehaviorEpoch):
 
 
 def main(config_path=''):
-    import sys
-    app = QtGui.QApplication(sys.argv)
+    app = QtWidgets.QApplication(sys.argv)
     w = CalibrationViewer()
     w.show()
 
