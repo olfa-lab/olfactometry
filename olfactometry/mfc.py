@@ -67,7 +67,7 @@ class MFC(QtWidgets.QGroupBox):
         if setflow < 0 or setflow > self.capacity:
             flow = self.get_flowrate()
             if flow is not None:
-                self.mfcslider.setValue(flow * self.capacity)
+                self.mfcslider.setValue(int(flow * self.capacity))
                 self.last_poll_time = time.time()
         else:
             self.set_flowrate(setflow)
@@ -114,7 +114,7 @@ class MFC(QtWidgets.QGroupBox):
         try:
             value = float(self.mfctextbox.text())
             self.set_flowrate(value)
-            self.mfcslider.setValue(value)
+            self.mfcslider.setValue(int(value))
         except ValueError:
             pass
         return
@@ -173,14 +173,14 @@ class MFCAlicatDigArduino(MFC):
         flownum = int(flownum)
         command = "DMFC {0:d} {1:d} A{2:d}".format(self.parent_device.slaveindex, self.arduino_port, flownum)
         confirmation = self.parent_device.send_command(command)
-        if(confirmation != "MFC set\r\n"):
+        if(confirmation.decode('utf-8') != "MFC set\r\n"):
             print("Error setting MFC: ", confirmation)
         else:
             # Attempt to read back
             success = True
             command = "DMFC {0:d} {1:d}".format(self.parent_device.slaveindex, self.arduino_port)
             returnstring = self.parent_device.send_command(command)
-            while (returnstring is None or returnstring.startswith('Error -2')) and time.time() - start_time < .2:
+            while (returnstring is None or returnstring.startswith(b'Error -2')) and time.time() - start_time < .2:
                 returnstring = self.parent_device.send_command(command)
         return success
 
