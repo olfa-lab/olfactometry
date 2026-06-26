@@ -1,11 +1,13 @@
-from PyQt5 import QtCore, QtGui, QtWidgets
-from .utils import get_olfa_config, OlfaException, flatten_dictionary
-from .olfactometer import TeensyOlfa, Olfactometer
-from .dilutor import DILUTORS, Dilutor
-from pprint import pformat
 import logging
 import os
 import sys
+from pprint import pformat
+
+from PyQt5 import QtCore, QtGui, QtWidgets
+
+from olfactometry.dilutor import DILUTORS, Dilutor
+from olfactometry.olfactometer import Olfactometer, TeensyOlfa
+from olfactometry.utils import OlfaException, flatten_dictionary, get_olfa_config
 
 
 class Olfactometers(QtWidgets.QMainWindow):

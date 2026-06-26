@@ -1,12 +1,14 @@
-import numpy as np
-import scipy.stats as stats
-import tables as tb
-from PyQt5 import QtCore, QtGui, QtWidgets
 import logging
 import os
 import sys
+
+import numpy as np
+import scipy.stats as stats
+import tables as tb
 from matplotlib.backends.backend_qt4agg import FigureCanvas
 from matplotlib.figure import Figure
+from PyQt5 import QtCore, QtGui, QtWidgets
+
 try:
     from numba import jit  # used for detrending maths. Not required.
 except ImportError:

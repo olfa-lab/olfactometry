@@ -1,10 +1,10 @@
-import os
 import json
 import logging
-import serial
-from serial.tools import list_ports
+import os
 import time
 
+import serial
+from serial.tools import list_ports
 
 CONFIG_FILENAME_DEFAULT = 'olfa_config.json'
 
@@ -87,7 +87,7 @@ def connect_serial(port, baudrate=115200, timeout=1, writeTimeout=1):
     for i in list_ports.comports():
         names_list.append(i[0])
     if port not in names_list:
-        print(("Serial not found on {0}.".format(port)))
+        print("Serial not found on {0}.".format(port))
         print('Listing current serial ports with devices:')
         for ser in list_ports.comports():
             ser_str = '\t{0}: {1}'.format(ser[0], ser[1])

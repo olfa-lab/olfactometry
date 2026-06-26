@@ -1,7 +1,9 @@
+import logging
+
 from PyQt5 import QtCore, QtWidgets
 from serial import SerialException
-from olfactometry.mfc import MFCclasses, MFC
-import logging
+
+from olfactometry.mfc import MFC, MFCclasses
 from olfactometry.utils import OlfaException, connect_serial
 
 

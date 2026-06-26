@@ -1,7 +1,11 @@
-from PyQt5 import QtCore, QtWidgets
-from .olfactometer import TeensyOlfa
-from serial.tools import list_ports
 import logging
+import sys
+
+from PyQt5 import QtCore, QtWidgets
+from serial.tools import list_ports
+
+from olfactometry.olfactometer import TeensyOlfa
+
 
 class Cleaner(QtWidgets.QWidget):
     def __init__(self, config=None):
@@ -248,7 +252,6 @@ teensy = {"Vials": {str(n): {} for n in range(1, 13)},  # all possible vials.
 
 
 def main():
-    import sys
     LOGGING_LEVEL = logging.INFO
     logger = logging.getLogger()
     handler = logging.StreamHandler()

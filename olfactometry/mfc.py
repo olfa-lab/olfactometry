@@ -1,6 +1,7 @@
-from PyQt5 import QtCore, QtWidgets
-import time
 import logging
+import time
+
+from PyQt5 import QtCore, QtWidgets
 
 
 class DirectSerialInterface(QtWidgets.QWidget):  # todo: implement direct serial interface for troubleshooting MFC behavior.
