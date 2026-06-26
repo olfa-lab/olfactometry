@@ -1,8 +1,8 @@
 from PyQt5 import QtCore, QtWidgets
 from serial import SerialException
-from .mfc import MFCclasses, MFC
+from olfactometry.mfc import MFCclasses, MFC
 import logging
-from .utils import OlfaException, connect_serial
+from olfactometry.utils import OlfaException, connect_serial
 
 
 class Dilutor(QtWidgets.QGroupBox):
